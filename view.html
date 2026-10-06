@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>오늘의 AI포토</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#070b24; --card:#0f1640; --line:#24306e; --ink:#f2f5ff; --muted:#9aa6d8; --accent:#38e1ff;
+    --fun:"Jua","Apple SD Gothic Neo","Malgun Gothic",sans-serif; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:var(--ink);font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    background:radial-gradient(120% 60% at 90% 0%,rgba(56,225,255,.18),transparent 60%),
+               radial-gradient(100% 50% at 0% 100%,rgba(124,92,255,.2),transparent 60%),var(--bg);}
+  main{max-width:520px;margin:0 auto;padding:28px 16px max(32px,env(safe-area-inset-bottom))}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--accent);text-align:center}
+  h1{font-family:var(--fun);font-weight:400;font-size:34px;text-align:center;margin:4px 0 22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;margin-bottom:18px;
+    box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  .card h2{font-family:var(--fun);font-weight:400;font-size:21px;margin:2px 4px 12px}
+  .media{border-radius:14px;overflow:hidden;background:#000;position:relative}
+  .media img{display:block;width:100%;height:auto}
+  .media iframe{display:block;width:100%;aspect-ratio:4/3;border:0}
+  .media.portrait iframe{aspect-ratio:3/4}
+  .tip{font-size:13px;color:var(--muted);margin:10px 4px 12px;line-height:1.5}
+  .btn{display:block;text-align:center;text-decoration:none;color:#fff;font-family:var(--fun);font-size:19px;
+    padding:13px;border-radius:14px;background:linear-gradient(135deg,#4f5bff,#22b8ee)}
+  .btn.sub{background:none;border:1px solid var(--line);color:var(--muted);font-size:15px;margin-top:8px;font-family:inherit}
+  .err{text-align:center;color:var(--muted);line-height:1.7;margin-top:40px}
+  footer{text-align:center;font-size:12px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">AI POSE MISSION</div>
+  <h1>🤖 오늘의 AI포토</h1>
+  <div id="content"></div>
+  <footer>AI프로그래밍랩 · 개포중학교</footer>
+</main>
+<script>
+  const q = new URLSearchParams(location.search);
+  const ok = id => /^[\w-]{10,}$/.test(id || "");
+  const p = q.get("p"), v = q.get("v");
+  const box = document.getElementById("content");
+  const dl = id => `https://drive.google.com/uc?export=download&id=${id}`;
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  if (!ok(p)) {
+    box.innerHTML = `<p class="err">사진 정보를 찾을 수 없어요 🥲<br>포토부스 화면의 QR을 다시 찍어주세요.</p>`;
+  } else {
+    box.insertAdjacentHTML("beforeend", `
+      <section class="card">
+        <h2>📸 오늘의 사진</h2>
+        <div class="media"><img id="photo" alt="오늘의 AI포토 사진"></div>
+        <p class="tip">${isIOS ? "사진을 <b>길게 눌러 ‘사진 앱에 저장’</b>을 누르면 앨범에 저장돼요." : "사진을 <b>길게 눌러 ‘이미지 다운로드’</b>를 누르거나 아래 버튼을 눌러주세요."}</p>
+        <a class="btn" href="${dl(p)}">💾 사진 저장하기</a>
+      </section>`);
+    const img = document.getElementById("photo");
+    img.src = `https://lh3.googleusercontent.com/d/${p}=w1600`;
+    img.onerror = () => { if (!img.dataset.retry) { img.dataset.retry = 1; img.src = `https://drive.google.com/thumbnail?id=${p}&sz=w1600`; } };
+    // 4장 모드(세로 영상)는 사진 비율이 약 2:3, 2장 모드(가로 영상)는 1:3
+    img.onload = () => { const vb = document.getElementById("vbox"); if (vb && img.naturalHeight / img.naturalWidth < 2) vb.classList.add("portrait"); };
+
+    if (ok(v)) {
+      box.insertAdjacentHTML("beforeend", `
+        <section class="card">
+          <h2>🎬 메이킹 타임랩스</h2>
+          <div class="media" id="vbox"><iframe src="https://drive.google.com/file/d/${v}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe></div>
+          <p class="tip">영상이 아직 ‘처리 중’이라고 나오면 1~2분 뒤 아래 새로고침을 눌러주세요.${isIOS ? "<br>아이폰은 저장 후 ‘파일’ 앱에서 공유 → ‘비디오 저장’을 누르면 앨범에 들어가요." : ""}</p>
+          <a class="btn" href="${dl(v)}">💾 영상 저장하기</a>
+          <a class="btn sub" href="javascript:location.reload()">🔄 새로고침</a>
+        </section>`);
+    }
+  }
+</script>
+</body>
+</html>

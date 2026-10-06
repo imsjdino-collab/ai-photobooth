@@ -107,7 +107,7 @@
   .report .c2{font-size:15px;color:var(--muted);margin-top:4px}
   .qrbox{display:none;align-items:center;gap:12px;padding:10px 14px 10px 10px;border-radius:18px;background:var(--panel);border:2px solid var(--accent2)}
   .qrbox.show{display:flex}
-  .qrbox canvas{width:120px;height:120px;border-radius:10px;background:#fff}
+  .qrbox canvas{width:150px;height:150px;border-radius:10px;background:#fff}
   .qrbox div{font-size:14px;line-height:1.45;color:var(--muted)}
   .qrbox b{font-family:var(--fun);font-weight:400;font-size:19px;color:var(--ink)}
   .idle{font-size:13px;color:var(--muted);width:100%;text-align:center}
@@ -176,7 +176,7 @@
       </button>
     </div>
     <button id="startBtn" class="primary">📸 촬영 시작</button>
-    <button id="qrBtn" class="ghost" style="display:none">📱 QR 다운로드: 켜짐</button>
+    <button id="qrBtn" class="ghost" style="display:none">📱 QR로 사진·영상 받기: 켜짐</button>
     <button id="debugBtn" class="ghost">🔍 인식 테스트</button>
   </section>
 
@@ -189,7 +189,7 @@
   <!-- 결과 화면 -->
   <section id="pResult" class="panel">
     <div class="report"><div class="c1" id="rC1"></div><div class="c2" id="rC2"></div></div>
-    <div id="qrBox" class="qrbox"><canvas id="qrCanvas" width="180" height="180"></canvas>
+    <div id="qrBox" class="qrbox"><canvas id="qrCanvas" width="300" height="300"></canvas>
       <div id="qrMsg"><b>📱 사진 받기</b><br>휴대폰 카메라로<br>QR을 찍어주세요</div></div>
     <button id="printBtn" class="primary">🖨️ 인쇄하기</button>
     <button id="saveBtn" class="secondary">💾 저장</button>
@@ -209,11 +209,13 @@ const CONFIG = {
   footer1: "AI프로그래밍랩",       // 프레임 하단 첫째 줄
   footer2: "개포중학교",           // 프레임 하단 둘째 줄
   logo: "logo.png",              // index.html과 같은 곳에 올린 로고 파일 (없으면 글자만 표시)
-  uploadUrl: "https://script.google.com/macros/s/AKfycbzunuAJgLEa7-CoUwdXyKTnANwgpIaVgA1Zt03BHjxccAZw93aUkJya1Tmzw6qeU--Y/exec",                 // QR 다운로드용 Apps Script 웹앱 주소 (비워두면 QR 기능 꺼짐)
+  uploadUrl: "",                 // QR 다운로드용 Apps Script 웹앱 주소 (비워두면 QR 기능 꺼짐)
   missionTimeout: 6,             // 미션 인식 제한 시간(초). 지나면 그냥 찍힘
   countdown: 3,                  // 촬영 카운트다운(초)
   holdMs: 350,                   // 포즈를 이 시간(ms) 이상 유지하면 성공
-  resultIdle: 60,                // 결과 화면에서 이 시간(초) 지나면 처음으로
+  resultIdle: 90,                // 결과 화면에서 이 시간(초) 지나면 처음으로
+  timelapseMs: 350,              // 타임랩스: 이 간격(ms)마다 한 장씩 저장
+  timelapseFps: 16,              // 타임랩스 영상 재생 속도 (클수록 빨라짐)
 };
 if (new URLSearchParams(location.search).has("fast")) { CONFIG.missionTimeout = 1; CONFIG.countdown = 1; }
 
@@ -515,7 +517,7 @@ $("#startBtn").onclick = () => runSession();
 S.qrOn = true;
 const qrEnabled = () => !!CONFIG.uploadUrl && S.qrOn;
 if(CONFIG.uploadUrl){ $("#qrBtn").style.display=""; }
-$("#qrBtn").onclick = () => { S.qrOn=!S.qrOn; $("#qrBtn").textContent = `📱 QR 다운로드: ${S.qrOn?"켜짐":"꺼짐"}`; };
+$("#qrBtn").onclick = () => { S.qrOn=!S.qrOn; $("#qrBtn").textContent = `📱 QR로 사진·영상 받기: ${S.qrOn?"켜짐":"꺼짐"}`; };
 $("#cancelBtn").onclick = () => { S.abort = true; };
 $("#homeBtn").onclick = () => goHome();
 $("#printBtn").onclick = () => doPrint();
@@ -524,6 +526,7 @@ $("#saveBtn").onclick = () => doSave();
 function goHome(){
   clearInterval(S.idleTimer);
   S.modeTouched=false; S.abort=false; need={hands:false,pose:false};
+  TL.stop(); S.sessionId=0;
   if(S.debug) $("#debugBtn").click();
   show("start"); renderHeadcount();
 }
@@ -531,10 +534,24 @@ function goHome(){
 /* =========================================================
    촬영 세션
    ========================================================= */
+/* 최근에 나온 미션은 잠시 빼고 뽑기 → 연속 촬영해도 미션이 겹치지 않음 */
+let recentMissions = [];
+try { recentMissions = JSON.parse(localStorage.getItem("recentMissions") || "[]"); } catch {}
+function pickFresh(list, exclude=[]){
+  const avoid = new Set([...recentMissions, ...exclude.map(m=>m.title)]);
+  const fresh = list.filter(m=>!avoid.has(m.title));
+  const pool = fresh.length ? fresh : list.filter(m=>!exclude.includes(m));
+  return pool[Math.floor(Math.random()*pool.length)];
+}
 function pickMissions(n){
-  const f1 = pick(MISSIONS.face);
-  const last = n>=2 ? pick(MISSIONS.group) : pick(MISSIONS.face.filter(m=>m!==f1));
-  return shuffle([f1, pick(MISSIONS.hand), pick(MISSIONS.body), last]);
+  const f1 = pickFresh(MISSIONS.face);
+  const hand = pickFresh(MISSIONS.hand);
+  const body = pickFresh(MISSIONS.body);
+  const last = n>=2 ? pickFresh(MISSIONS.group) : pickFresh(MISSIONS.face, [f1]);
+  const set = [f1, hand, body, last];
+  recentMissions = [...set.map(m=>m.title), ...recentMissions].slice(0, 12);   // 최근 3번 촬영분 기억
+  try { localStorage.setItem("recentMissions", JSON.stringify(recentMissions)); } catch {}
+  return shuffle(set);
 }
 
 function buildThumbs(){
@@ -550,6 +567,7 @@ async function runSession(){
   S.abort=false; S.n = Math.max(1, S.headcount||1); S.shots=[];
   S.missions = pickMissions(ai.ready ? S.n : 1);
   show("shoot"); buildThumbs();
+  if(qrEnabled()) TL.start();
   const nav = navigator; try{ S.wake = await nav.wakeLock?.request("screen"); }catch{}
 
   for(let i=0;i<4;i++){
@@ -560,6 +578,7 @@ async function runSession(){
     $("#mStep").textContent = `MISSION ${i+1} / 4`;
     $("#mTitle").textContent = `${m.emoji} ${m.title}`;
     $("#mDesc").textContent = m.desc;
+    TL.step = i+1; TL.label = `${m.emoji} ${m.title}`;
     $("#mission").classList.add("show");
     await sleep(700);
 
@@ -580,12 +599,14 @@ async function runSession(){
     if(S.abort) break;
 
     await flashBanner(success ? "인식 성공! ✨" : (ai.ready ? "시간 초과! 그냥 찍어요 📸" : "포즈 잡고~ 📸"), 900);
-    for(let c=CONFIG.countdown;c>=1;c--){ if(S.abort) break; popCount(c); await sleep(1000); }
+    for(let c=CONFIG.countdown;c>=1;c--){ if(S.abort) break; popCount(c); TL.count=c; await sleep(1000); }
+    TL.count=null;
     if(S.abort) break;
 
     const stats = snapshot();
     const img = captureFrame(S.mode===4 ? 3/4 : 4/3);
     $("#flash").classList.remove("go"); void $("#flash").offsetWidth; $("#flash").classList.add("go");
+    TL.grab(true);
     S.shots.push({ img, success, mission:m, aiOn:ai.ready, ...stats });
     th.classList.remove("now"); th.classList.add("done"); th.textContent="";
     th.style.backgroundImage = `url(${img.toDataURL("image/jpeg",0.6)})`;
@@ -593,6 +614,7 @@ async function runSession(){
     await sleep(800);
   }
   need = { hands:false, pose:false };
+  TL.stop(); TL.label="";
   $("#mission").classList.remove("show");
   try{ S.wake?.release(); }catch{}
   if(S.abort || S.shots.length<4){ goHome(); return; }
@@ -605,7 +627,7 @@ function snapshot(){
 }
 
 async function flashBanner(text, ms){
-  const b=$("#banner"); b.textContent=text; b.classList.add("show"); await sleep(ms); b.classList.remove("show"); await sleep(150);
+  const b=$("#banner"); b.textContent=text; b.classList.add("show"); TL.banner=text; await sleep(ms); b.classList.remove("show"); TL.banner=""; await sleep(150);
 }
 function popCount(n){ const c=$("#count"); c.textContent=n; c.classList.remove("pop"); void c.offsetWidth; c.classList.add("pop"); }
 
@@ -725,8 +747,10 @@ function drawPhoto(ctx, shot, i, x,y,w,h, small, theme){
   ctx.save(); rr(ctx,x,y,w,h,10); ctx.clip(); ctx.drawImage(shot.img,x,y,w,h); ctx.restore();
   const mark = shot.aiOn ? (shot.success?" 👾":" 🌀") : "";                  // 성공 👾 · 실패 🌀
   const em = shot.mission.emoji.slice(0,2);
-  if(small){ pill(ctx, `${em}${mark}`, x+6, y+h-28, 13, theme); }
-  else {
+  if(small){
+    pill(ctx, `${em} ${shot.mission.title}${mark}`, x+6, y+h-27, 12, theme);
+    pill(ctx, `SCAN 0${i+1}`, x+w-6, y+6, 9, theme, "right");
+  } else {
     pill(ctx, `${em} ${shot.mission.title}${mark}`, x+8, y+h-36, 16, theme);
     pill(ctx, `SCAN 0${i+1}`, x+w-8, y+8, 11, theme, "right");
   }
@@ -735,23 +759,24 @@ function textL(ctx, text, x, y, maxW, size, family, color, weight=""){
   let s=size; do { ctx.font=`${weight} ${s}px ${family}`; if(ctx.measureText(text).width<=maxW) break; s-=1; } while(s>9);
   ctx.fillStyle=color; ctx.textAlign="left"; ctx.textBaseline="alphabetic"; ctx.fillText(text, x, y);
 }
-// align: "center" → cx가 가운데,  "left" → cx가 왼쪽 시작점
+// align: "center" → cx가 가운데, "left" → cx가 왼쪽 끝, "right" → cx가 오른쪽 끝
 function drawLogoRow(ctx, cx, cy, r, s1, s2, theme, align="center"){
   ctx.font=`${s1}px ${FONT_FUN}`; const w1=ctx.measureText(CONFIG.footer1).width;
   ctx.font=`${s2}px ${FONT_FUN}`; const w2=ctx.measureText(CONFIG.footer2).width;
-  const gap = logoOk ? r*.6 : 0, logoW = logoOk ? r*2 : 0, tw=Math.max(w1,w2), total=logoW+gap+tw;
-  const lx = align==="center" ? cx-total/2 : cx, tx = lx+logoW+gap;
+  const gap = logoOk ? r*.55 : 0, logoW = logoOk ? r*2 : 0, tw=Math.max(w1,w2), total=logoW+gap+tw;
+  const lx = align==="center" ? cx-total/2 : align==="right" ? cx-total : cx, tx = lx+logoW+gap;
   if(logoOk){
     ctx.save(); ctx.beginPath(); ctx.arc(lx+r,cy,r,0,7); ctx.fillStyle="#fff"; ctx.fill();
     ctx.strokeStyle=hexA(theme.accent,.9); ctx.lineWidth=2; ctx.stroke(); ctx.clip();
     const sc=Math.min((r*1.6)/logoImg.width,(r*1.6)/logoImg.height), iw=logoImg.width*sc, ih=logoImg.height*sc;
     ctx.drawImage(logoImg, lx+r-iw/2, cy-ih/2, iw, ih); ctx.restore();
   }
-  const center = !logoOk && align==="center";
-  ctx.textAlign = center ? "center" : "left"; ctx.textBaseline="alphabetic";
-  const ax = center ? cx : tx;
-  ctx.font=`${s1}px ${FONT_FUN}`; ctx.fillStyle=theme.accent; ctx.fillText(CONFIG.footer1, ax, cy-2);
-  ctx.font=`${s2}px ${FONT_FUN}`; ctx.fillStyle="#fff";         ctx.fillText(CONFIG.footer2, ax, cy+s2+1);
+  ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+  // 두 줄 묶음의 세로 중앙을 cy에 맞춤
+  const lineGap = Math.round(s2*0.15), blockH = s1 + lineGap + s2, top = cy - blockH/2 - 1;
+  ctx.font=`${s1}px ${FONT_FUN}`; ctx.fillStyle=theme.accent; ctx.fillText(CONFIG.footer1, tx, top + s1*0.92);
+  ctx.font=`${s2}px ${FONT_FUN}`; ctx.fillStyle="#fff";         ctx.fillText(CONFIG.footer2, tx, top + s1 + lineGap + s2*0.92);
+  return total;
 }
 function titleWithRules(ctx, text, cx, y, size, maxW, theme, x0, x1){
   fitText(ctx, text, cx, y, maxW, size, FONT_FUN, "#fff");
@@ -761,59 +786,37 @@ function titleWithRules(ctx, text, cx, y, size, maxW, theme, x0, x1){
   ctx.fillStyle=theme.accent; for(const px of [x0,x1]){ ctx.beginPath(); ctx.arc(px,my,4,0,7); ctx.fill(); }
   ctx.restore();
 }
-function drawQRBox(ctx, qr, x, y, size){                                       // 흰 바탕 + QR
-  const n = qr.size, mod = Math.floor(size/(n+4)), real = mod*(n+4);
-  const ox = x + (size-real), oy = y + (size-real);                              // 오른쪽 아래에 붙임
-  ctx.save(); rr(ctx, ox, oy, real, real, 6); ctx.fillStyle="#fff"; ctx.fill();
-  ctx.fillStyle="#000";
-  for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(qr.get(c,r)) ctx.fillRect(ox+(c+2)*mod, oy+(r+2)*mod, mod, mod);
-  ctx.restore();
-  return { x:ox, y:oy, size:real };
-}
-const QR_SIZE = 148;                                                            // 약 1.25cm (모듈 4px)
-function drawStrip(ctx, x0, shots, rep, theme, qr){                            // 600 × 1800
-  drawUnitBg(ctx,x0,0,600,1800,theme,80);
+function drawStrip(ctx, x0, shots, rep, theme){                                // 600 × 1800
+  drawUnitBg(ctx,x0,0,600,1800,theme,76);
   fitText(ctx, `AI POSE MISSION  ·  ${rep.date}`, x0+300, 86, 440, 14, FONT_UI, hexA(theme.accent,.95), "700");
   titleWithRules(ctx, CONFIG.title, x0+300, 130, 42, 340, theme, x0+80, x0+520);
-  const pw=440, ph=330, px=x0+80, top=152, gap=16;
+  const pw=448, ph=336, px=x0+76, top=152, gap=16;
   shots.forEach((s,i)=>drawPhoto(ctx, s, i, px, top+i*(ph+gap), pw, ph, false, theme));
   hudCorners(ctx, px, top, pw, 4*ph+3*gap, 11, 28, theme.accent);
   // AI 리포트 카드
-  const cy=top+4*ph+3*gap+18;                                                    // ≈ 1466
-  ctx.save(); rr(ctx,px,cy,pw,108,16); ctx.fillStyle="rgba(255,255,255,.06)"; ctx.fill();
+  const cy=top+4*ph+3*gap+16;                                                    // ≈ 1560
+  ctx.save(); rr(ctx,px,cy,pw,98,16); ctx.fillStyle="rgba(255,255,255,.06)"; ctx.fill();
   ctx.strokeStyle=hexA(theme.accent,.45); ctx.lineWidth=1.5; ctx.stroke(); ctx.restore();
   pill(ctx, "🤖 AI REPORT", px+40, cy-12, 12, theme);
-  fitText(ctx, rep.comment, x0+300, cy+44, 420, 26, FONT_FUN, "#fff");
-  fitText(ctx, rep.tail,    x0+300, cy+74, 420, 20, FONT_FUN, "rgba(255,255,255,.88)");
-  fitText(ctx, rep.stats,   x0+300, cy+99, 420, 14, FONT_UI,  hexA(theme.accent,.95), "700");
-  const by = cy+108;                                                             // 하단 영역 시작 ≈ 1574
-  if(qr){
-    const q = drawQRBox(ctx, qr, px+pw-QR_SIZE, 1740-QR_SIZE, QR_SIZE);
-    textL(ctx, "📱 QR 찍고 사진 저장!", px+4, by+48, q.x-px-16, 17, FONT_FUN, hexA(theme.accent,1));
-    drawLogoRow(ctx, px+4, by+104, 26, 16, 22, theme, "left");
-  } else {
-    drawLogoRow(ctx, x0+300, by+50, 26, 16, 22, theme);
-  }
+  fitText(ctx, rep.comment, x0+300, cy+39, 420, 23, FONT_FUN, "#fff");
+  fitText(ctx, rep.tail,    x0+300, cy+64, 420, 18, FONT_FUN, "rgba(255,255,255,.88)");
+  fitText(ctx, rep.stats,   x0+300, cy+85, 420, 13, FONT_UI,  hexA(theme.accent,.95), "700");
+  // 학교 로고 + 글자 (리포트보다 조금 크게)
+  drawLogoRow(ctx, x0+300, 1704, 32, 19, 27, theme);
 }
-function drawPiece(ctx, x0, y0, shots, rep, theme, qr){                        // 600 × 900
-  drawUnitBg(ctx,x0,y0,600,900,theme,70);
-  fitText(ctx, `AI POSE MISSION  ·  ${rep.date}`, x0+300, y0+64, 400, 12, FONT_UI, hexA(theme.accent,.95), "700");
-  titleWithRules(ctx, CONFIG.title, x0+300, y0+98, 28, 260, theme, x0+86, x0+514);
-  const pw=224, ph=299, gx=x0+70, gy=y0+114, gap=12;
+function drawPiece(ctx, x0, y0, shots, rep, theme){                            // 600 × 900
+  drawUnitBg(ctx,x0,y0,600,900,theme,49);
+  fitText(ctx, `AI POSE MISSION  ·  ${rep.date}`, x0+300, y0+58, 400, 11, FONT_UI, hexA(theme.accent,.95), "700");
+  titleWithRules(ctx, CONFIG.title, x0+300, y0+90, 24, 240, theme, x0+86, x0+514);
+  const pw=246, ph=328, gx=x0+49, gy=y0+104, gap=10, gw=2*pw+gap;
   shots.forEach((s,i)=>drawPhoto(ctx, s, i, gx+(i%2)*(pw+gap), gy+Math.floor(i/2)*(ph+gap), pw, ph, true, theme));
-  hudCorners(ctx, gx, gy, 2*pw+gap, 2*ph+gap, 9, 22, theme.accent);
-  const by = gy+2*ph+gap;                                                       // ≈ 694
-  if(qr){
-    const q = drawQRBox(ctx, qr, gx+2*pw+gap-QR_SIZE+4, y0+854-QR_SIZE, QR_SIZE);
-    const lw = q.x-gx-14;
-    textL(ctx, rep.title, gx+2, by+44, lw, 24, FONT_FUN, "#fff");
-    textL(ctx, rep.short, gx+2, by+68, lw, 13, FONT_UI, hexA(theme.accent,.95), "700");
-    drawLogoRow(ctx, gx+2, by+114, 17, 11, 15, theme, "left");
-  } else {
-    fitText(ctx, rep.title, x0+300, by+40, 420, 24, FONT_FUN, "#fff");
-    fitText(ctx, rep.short, x0+300, by+62, 420, 13, FONT_UI, hexA(theme.accent,.95), "700");
-    drawLogoRow(ctx, x0+300, by+96, 17, 11, 15, theme);
-  }
+  hudCorners(ctx, gx, gy, gw, 2*ph+gap, 8, 22, theme.accent);
+  // 하단: 왼쪽 AI 칭호 · 오른쪽 학교 로고
+  const rowY = y0+814;
+  const logoW = drawLogoRow(ctx, gx+gw-2, rowY, 21, 12, 19, theme, "right");
+  const lw = gw - logoW - 20;
+  textL(ctx, rep.title, gx+4, rowY-1, lw, 19, FONT_FUN, "#fff");
+  textL(ctx, rep.short, gx+4, rowY+19, lw, 11, FONT_UI, hexA(theme.accent,.95), "700");
 }
 function drawCutGuides(ctx, mode){
   ctx.save(); ctx.strokeStyle="rgba(255,255,255,.35)"; ctx.lineWidth=2; ctx.setLineDash([10,10]);
@@ -824,11 +827,10 @@ async function loadFonts(){ try{ await Promise.race([document.fonts.load(`36px "
 // 인쇄용 4×6 한 장 (qrText가 있으면 QR 포함)
 async function compose(shots, mode, rep, theme, qrText){
   await loadFonts();
-  const qr = qrText ? QR.encode(qrText) : null;
   const c=document.createElement("canvas"); c.width=1200; c.height=1800;
   const ctx=c.getContext("2d");
-  if(mode===2){ drawStrip(ctx,0,shots,rep,theme,qr); drawStrip(ctx,600,shots,rep,theme,qr); }
-  else { for(let r=0;r<2;r++) for(let k=0;k<2;k++) drawPiece(ctx,k*600,r*900,shots,rep,theme,qr); }
+  if(mode===2){ drawStrip(ctx,0,shots,rep,theme); drawStrip(ctx,600,shots,rep,theme); }
+  else { for(let r=0;r<2;r++) for(let k=0;k<2;k++) drawPiece(ctx,k*600,r*900,shots,rep,theme); }
   drawCutGuides(ctx, mode);
   return c;
 }
@@ -837,7 +839,7 @@ async function composeDigital(shots, mode, rep, theme){
   await loadFonts();
   const c=document.createElement("canvas"); c.width=1200; c.height = mode===2 ? 3600 : 1800;
   const ctx=c.getContext("2d"); ctx.scale(2,2);
-  if(mode===2) drawStrip(ctx,0,shots,rep,theme,null); else drawPiece(ctx,0,0,shots,rep,theme,null);
+  if(mode===2) drawStrip(ctx,0,shots,rep,theme); else drawPiece(ctx,0,0,shots,rep,theme);
   return c;
 }
 
@@ -914,21 +916,104 @@ const QR = (() => {
   return { encode };
 })();
 
+
 /* =========================================================
-   QR 업로드 (구글 드라이브 · Apps Script)
+   타임랩스 (촬영 장면을 빨리감기 영상으로)
    ========================================================= */
-async function uploadPhoto(canvas){
-  const b64 = canvas.toDataURL("image/jpeg", 0.9).split(",")[1];
-  const d = new Date(), stamp = `${d.getMonth()+1}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}${String(d.getSeconds()).padStart(2,"0")}`;
-  const ctrl = new AbortController(), t = setTimeout(()=>ctrl.abort(), 20000);
+const TL = {
+  frames:[], n:0, timer:null, on:false, label:"", step:0, count:null, banner:"", c:null, x:null,
+  start(){
+    this.frames=[]; this.n=0; this.on=true; this.label=""; this.count=null; this.banner="";
+    const [w,h] = S.mode===4 ? [480,640] : [640,480];
+    this.c=document.createElement("canvas"); this.c.width=w; this.c.height=h; this.x=this.c.getContext("2d");
+    clearInterval(this.timer); this.timer=setInterval(()=>this.grab(), CONFIG.timelapseMs);
+  },
+  stop(){ clearInterval(this.timer); this.timer=null; this.on=false; },
+  draw(flash){
+    const x=this.x, w=this.c.width, h=this.c.height, a=w/h, W=vw(), H=vh();
+    let sw,sh; if(W/H>a){ sh=H; sw=H*a; } else { sw=W; sh=W/a; }
+    x.save(); if(!S.demo){ x.translate(w,0); x.scale(-1,1); }
+    x.drawImage(source(), (W-sw)/2,(H-sh)/2,sw,sh, 0,0,w,h); x.restore();
+    x.save(); x.textBaseline="middle"; x.textAlign="left";
+    rr(x,12,12,196,30,15); x.fillStyle="rgba(7,11,36,.65)"; x.fill();
+    x.fillStyle="#ff4d6d"; x.beginPath(); x.arc(30,27,5,0,7); x.fill();
+    x.fillStyle="#fff"; x.font=`14px ${FONT_FUN}`; x.fillText("REC · "+CONFIG.title, 42, 28);
+    if(this.label){
+      const t=`MISSION ${this.step}/4  ${this.label}`; x.font=`17px ${FONT_FUN}`;
+      const tw=x.measureText(t).width+28; rr(x,(w-tw)/2,h-52,tw,36,18); x.fillStyle="rgba(7,11,36,.72)"; x.fill();
+      x.fillStyle="#fff"; x.textAlign="center"; x.fillText(t, w/2, h-33);
+    }
+    if(this.banner){ x.font=`28px ${FONT_FUN}`; x.textAlign="center"; x.lineWidth=6; x.strokeStyle="rgba(7,11,36,.8)";
+      x.strokeText(this.banner,w/2,h/2); x.fillStyle="#fff"; x.fillText(this.banner,w/2,h/2); }
+    if(this.count){ x.font=`120px ${FONT_FUN}`; x.textAlign="center"; x.lineWidth=10; x.strokeStyle="rgba(7,11,36,.6)";
+      x.strokeText(this.count,w/2,h/2+8); x.fillStyle="#fff"; x.fillText(this.count,w/2,h/2+8); }
+    x.restore();
+    if(flash){ x.fillStyle="rgba(255,255,255,.8)"; x.fillRect(0,0,w,h); }
+  },
+  grab(flash=false){
+    if(!this.on) return;
+    try{ this.draw(flash); }catch{ return; }
+    const i=this.n++; this.c.toBlob(b=>{ if(b) this.frames[i]=b; }, "image/jpeg", 0.72);
+  },
+};
+function blobToImage(blob){ return new Promise((res,rej)=>{ const u=URL.createObjectURL(blob), im=new Image();
+  im.onload=()=>{ URL.revokeObjectURL(u); res(im); }; im.onerror=e=>{ URL.revokeObjectURL(u); rej(e); }; im.src=u; }); }
+async function buildTimelapse(endCanvas){
+  if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) throw new Error("이 기기는 영상 만들기를 지원하지 않아요");
+  await sleep(200);                                                              // 마지막 프레임 저장 대기
+  const frames = TL.frames.filter(Boolean);
+  if(frames.length < 5) throw new Error("frames too few");
+  const w=TL.c.width, h=TL.c.height;
+  const c=document.createElement("canvas"); c.width=w; c.height=h; const x=c.getContext("2d");
+  const types=["video/mp4;codecs=avc1.42E01E","video/mp4","video/webm;codecs=vp9","video/webm"];
+  const mime=types.find(t=>{ try{ return MediaRecorder.isTypeSupported(t); }catch{ return false; } }) || "";
+  const bg=()=>{ const g=x.createLinearGradient(0,0,0,h); g.addColorStop(0,"#0b1342"); g.addColorStop(1,"#080d33"); x.fillStyle=g; x.fillRect(0,0,w,h); };
+  bg();
+  const stream=c.captureStream(30);
+  const rec=new MediaRecorder(stream, mime ? { mimeType:mime, videoBitsPerSecond:2500000 } : { videoBitsPerSecond:2500000 });
+  const chunks=[]; rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+  const stopped=new Promise(r=>rec.onstop=r);
+  rec.start(500);
+  // 인트로
+  bg(); x.textAlign="center"; x.textBaseline="middle";
+  x.fillStyle="#38e1ff"; x.font=`700 16px ${FONT_UI}`; x.fillText("AI POSE MISSION · MAKING FILM", w/2, h/2-30);
+  x.fillStyle="#fff"; x.font=`44px ${FONT_FUN}`; x.fillText("🎬 "+CONFIG.title, w/2, h/2+16);
+  await sleep(900);
+  // 빨리감기 본편
+  const dt=1000/CONFIG.timelapseFps;
+  for(const b of frames){ const t0=performance.now();
+    try{ const im=await blobToImage(b); x.drawImage(im,0,0,w,h); }catch{}
+    await sleep(Math.max(0, dt-(performance.now()-t0))); }
+  // 엔딩: 완성된 사진
+  bg(); const sc=Math.min((w-40)/endCanvas.width,(h-40)/endCanvas.height), ew=endCanvas.width*sc, eh=endCanvas.height*sc;
+  x.drawImage(endCanvas,(w-ew)/2,(h-eh)/2,ew,eh);
+  await sleep(600); x.drawImage(endCanvas,(w-ew)/2,(h-eh)/2,ew,eh); await sleep(1400);
+  rec.stop(); await stopped; stream.getTracks().forEach(t=>t.stop());
+  const type=(rec.mimeType||mime||"video/webm").split(";")[0];
+  return new Blob(chunks,{ type });
+}
+
+/* =========================================================
+   업로드 (구글 드라이브 · Apps Script)
+   ========================================================= */
+function blobToB64(blob){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=rej; r.readAsDataURL(blob); }); }
+async function uploadFile(blob, name, timeoutMs){
+  const b64 = await blobToB64(blob);
+  const ctrl = new AbortController(), t = setTimeout(()=>ctrl.abort(), timeoutMs);
   try{
     const res = await fetch(CONFIG.uploadUrl, { method:"POST", signal:ctrl.signal,
       headers:{ "Content-Type":"text/plain;charset=utf-8" },
-      body: JSON.stringify({ image:b64, name:`오늘의AI포토_${stamp}.jpg` }) });
+      body: JSON.stringify({ data:b64, mime:blob.type||"application/octet-stream", name }) });
     const j = await res.json();
     if(!j.ok || !j.id) throw new Error(j.error || "upload failed");
-    return `https://drive.google.com/file/d/${j.id}/view`;
+    return j.id;
   } finally { clearTimeout(t); }
+}
+function drawQRCanvas(cv, text){
+  const cx=cv.getContext("2d"), N=cv.width, q=QR.encode(text), mod=Math.floor(N/(q.size+4)), off=Math.floor((N-mod*q.size)/2);
+  cx.fillStyle="#fff"; cx.fillRect(0,0,N,N); cx.fillStyle="#000";
+  for(let r=0;r<q.size;r++) for(let c=0;c<q.size;c++) if(q.get(c,r)) cx.fillRect(off+c*mod, off+r*mod, mod, mod);
 }
 
 async function finish(){
@@ -945,25 +1030,38 @@ async function finish(){
   show("result");
 
   $("#qrBox").classList.remove("show");
-  if(qrEnabled()){
-    const box=$("#qrBox"), msg=$("#qrMsg"), cv=$("#qrCanvas"), cx=cv.getContext("2d");
-    cx.fillStyle="#fff"; cx.fillRect(0,0,180,180);
-    msg.innerHTML="<b>📱 사진 받기</b><br>QR 만드는 중…"; box.classList.add("show");
-    try{
-      const digital = await composeDigital(S.shots, S.mode, rep, theme);
-      const link = await uploadPhoto(digital);
-      const q = QR.encode(link), mod = Math.floor(180/(q.size+4)), off = (180-mod*q.size)/2;
-      cx.fillStyle="#fff"; cx.fillRect(0,0,180,180); cx.fillStyle="#000";
-      for(let r=0;r<q.size;r++) for(let c=0;c<q.size;c++) if(q.get(c,r)) cx.fillRect(off+c*mod, off+r*mod, mod, mod);
-      msg.innerHTML="<b>📱 사진 받기</b><br>휴대폰 카메라로<br>QR을 찍어주세요";
-    }catch(e){
-      console.warn("QR upload", e);
-      msg.innerHTML="<b>📱 사진 받기</b><br>⚠️ 지금은 QR을 만들 수 없어요<br>인터넷 연결을 확인해주세요";
-    }
-  }
   let left = CONFIG.resultIdle;
   const tick = () => { $("#idleMsg").textContent = `${left}초 뒤 처음 화면으로 돌아가요`; if(left--<=0) goHome(); };
   tick(); clearInterval(S.idleTimer); S.idleTimer = setInterval(tick, 1000);
+  if(qrEnabled()){
+    const box=$("#qrBox"), msg=$("#qrMsg"), cv=$("#qrCanvas"), cx=cv.getContext("2d");
+    const sess = S.sessionId = Date.now();
+    const say = t => { if(S.sessionId===sess) msg.innerHTML = `<b>📱 사진·영상 받기</b><br>${t}`; };
+    cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height);
+    say("📸 사진 올리는 중…<br>🎬 영상 만드는 중…"); box.classList.add("show");
+    const d=new Date(), stamp=`${d.getMonth()+1}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}${String(d.getSeconds()).padStart(2,"0")}`;
+    const digital = await composeDigital(S.shots, S.mode, rep, theme);
+    let photoDone=false, videoDone=false;
+    const status = () => say(`${photoDone?"📸 사진 준비 완료":"📸 사진 올리는 중…"}<br>${videoDone?"🎬 영상 준비 완료":"🎬 영상 만드는 중…"}`);
+    const pPhoto = (async()=>{ const b=await new Promise(r=>digital.toBlob(r,"image/jpeg",0.9));
+      const id=await uploadFile(b, `오늘의AI포토_${stamp}.jpg`, 30000); photoDone=true; status(); return id; })();
+    const pVideo = (async()=>{ const v=await buildTimelapse(digital);
+      const ext=v.type.includes("mp4")?"mp4":"webm";
+      const id=await uploadFile(v, `오늘의AI포토_${stamp}.${ext}`, 90000); videoDone=true; status(); return id; })();
+    const [rp, rv] = await Promise.allSettled([pPhoto, pVideo]);
+    if(rv.status==="rejected") console.warn("timelapse", rv.reason);
+    if(S.sessionId!==sess) return;
+    if(rp.status==="fulfilled"){
+      const url = new URL("view.html", location.href);
+      url.search = `?p=${rp.value}` + (rv.status==="fulfilled" ? `&v=${rv.value}` : "");
+      drawQRCanvas(cv, url.href);
+      say(rv.status==="fulfilled" ? "휴대폰 카메라로<br>QR을 찍어주세요" : "휴대폰 카메라로 찍어주세요<br><small>(이번엔 사진만 있어요)</small>");
+      left = CONFIG.resultIdle;                                                  // QR이 뜨면 대기 시간 다시 시작
+    } else {
+      console.warn("QR upload", rp.reason);
+      say("⚠️ 지금은 QR을 만들 수 없어요<br>인터넷 연결을 확인해주세요");
+    }
+  }
 }
 
 /* =========================================================
