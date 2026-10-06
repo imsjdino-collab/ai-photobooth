@@ -1151,6 +1151,10 @@ const CLASSIC_THEMES = [
     phrases:["🎁 메리클쑤 🎅"], deco:["🎄","⭐","🎁","❄️","🔔"], snow:"#ffffff" },
   { id:"newyear", emoji:"🪁", name:"설날", bg:["#fbf4e6","#f2e3c8"], ink:"#b3283a", sub:"#2f6b4f", title:"Happy New Year", titleWrap:"✨",
     phrases:["올 한해두 행복하기\nผ( •̀ .̫ •́ )ง"], deco:["🪁","🌸","🪁"], seollal:true },
+  { id:"dog", emoji:"🐶", name:"멍멍", bg:["#f6e6d2","#fdf5ec"], ink:"#7a4a2a", sub:"#b5835a", title:"Woof Woof", titleWrap:"🤎",
+    phrases:["🐶 멍멍 🤎"], deco:["🐶","🤎","🦴","🐕","🤎"], paws:"#a8784f", ears:"dog", dots:"#e9d3b8" },
+  { id:"cat", emoji:"🐱", name:"냥냥", bg:["#ffffff","#f5f5f5"], ink:"#1c1c1c", sub:"#7a7a7a", title:"Meow Meow", titleWrap:"🖤",
+    phrases:["🐱 냥냥 🖤"], deco:["🐱","🖤","🐈‍⬛","🖤","🐟"], paws:"#2a2a2a", ears:"cat", dots:"#ececec" },
 ];
 const classicTheme = () => CLASSIC_THEMES.find(t=>t.id===S.classicTheme) || CLASSIC_THEMES[0];
 const boothTitle = () => S.style==="classic" ? "오늘의 네컷" : CONFIG.title;
@@ -1172,6 +1176,17 @@ function classicBg(ctx,x,y,w,h,t,gutter){
     for(let k=0;k<h/14;k++){ ctx.save(); ctx.translate(x+rnd()*w, y+rnd()*h); ctx.rotate(rnd()*6.28);
       ctx.fillStyle=cs[Math.floor(rnd()*cs.length)]; ctx.globalAlpha=.7; ctx.fillRect(-5,-2.5,10,5); ctx.restore(); } }
   if(t.seollal) drawSeollal(ctx,x,y,w,h,gutter,rnd);
+  if(t.dots){ ctx.fillStyle=t.dots; for(let yy=y+14; yy<y+h; yy+=28) for(let xx=x+((yy/28|0)%2?14:0)+7; xx<x+w; xx+=28){ ctx.beginPath(); ctx.arc(xx,yy,3.2,0,7); ctx.fill(); } }
+  if(t.paws){
+    // 양옆으로 걸어가는 발자국
+    for(const side of [0,1]){
+      const bx = side ? x+w-gutter/2 : x+gutter/2;
+      for(let yy=y+50, k=0; yy<y+h-30; yy+=58, k++){
+        const off = (k%2 ? 1 : -1) * gutter*0.16;
+        paw(ctx, bx+off, yy + (side?29:0), Math.min(15, gutter*0.22), hexA(t.paws, .28), (side?-1:1)*0.25 + (k%2?0.15:-0.15));
+      }
+    }
+  }
   if(t.deco.length){
     ctx.textAlign="center"; ctx.textBaseline="middle";
     const n=Math.round(h/95);
@@ -1180,6 +1195,40 @@ function classicBg(ctx,x,y,w,h,t,gutter){
       const cx = left ? x+10+rnd()*(gutter-14) : x+w-gutter+4+rnd()*(gutter-14);
       ctx.save(); ctx.translate(cx, y+30+rnd()*(h-60)); ctx.rotate((rnd()-.5)*0.9); ctx.globalAlpha=.9;
       ctx.font=`${size}px sans-serif`; ctx.fillStyle="#000"; ctx.fillText(t.deco[Math.floor(rnd()*t.deco.length)],0,0); ctx.restore();
+    }
+  }
+  // 설날 보름달 (장식 위에 그림)
+  if(t.seollal){ if(h>1000) fullMoon(ctx, x+w-gutter*0.55, y+70, 40); else fullMoon(ctx, x+w-62, y+42, 21); }
+  ctx.restore();
+}
+// 발자국
+function paw(ctx, x, y, s, color, rot=0){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot); ctx.fillStyle=color;
+  ctx.beginPath(); ctx.ellipse(0, s*0.35, s*0.62, s*0.5, 0, 0, 7); ctx.fill();
+  for(const [dx,dy,r] of [[-0.62,-0.28,0.24],[-0.22,-0.66,0.26],[0.22,-0.66,0.26],[0.62,-0.28,0.24]]){
+    ctx.beginPath(); ctx.ellipse(dx*s, dy*s, r*s, r*s*1.2, dx*0.4, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+// 사진 묶음 위에 귀 달기 (고양이: 뾰족귀, 강아지: 늘어진 귀)
+function drawEars(ctx, kind, x, y, w, size){
+  ctx.save();
+  if(kind==="cat"){
+    for(const [cx,dir] of [[x+size*1.4,-1],[x+w-size*1.4,1]]){
+      ctx.beginPath(); ctx.moveTo(cx-size*0.85, y+2); ctx.lineTo(cx+dir*size*0.25, y-size*1.15); ctx.lineTo(cx+size*0.85, y+2); ctx.closePath();
+      ctx.fillStyle="#1c1c1c"; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx-size*0.45, y); ctx.lineTo(cx+dir*size*0.18, y-size*0.68); ctx.lineTo(cx+size*0.45, y); ctx.closePath();
+      ctx.fillStyle="#f6b6c8"; ctx.fill();
+    }
+  } else {
+    for(const [cx,dir] of [[x+size*0.55,-1],[x+w-size*0.55,1]]){
+      ctx.save(); ctx.translate(cx, y-size*0.15); ctx.rotate(dir*0.22);
+      ctx.shadowColor="rgba(0,0,0,.18)"; ctx.shadowBlur=6; ctx.shadowOffsetY=2;
+      ctx.beginPath(); ctx.moveTo(-size*0.45,0);
+      ctx.bezierCurveTo(-size*0.9,size*0.6,-size*0.7,size*1.9,0,size*2.05);
+      ctx.bezierCurveTo(size*0.7,size*1.9,size*0.9,size*0.6,size*0.45,0); ctx.closePath();
+      ctx.fillStyle="#8a5a36"; ctx.fill(); ctx.shadowColor="transparent";
+      ctx.beginPath(); ctx.ellipse(0, size*1.1, size*0.3, size*0.7, 0, 0, 7); ctx.fillStyle="#b9875f"; ctx.fill();
+      ctx.restore();
     }
   }
   ctx.restore();
@@ -1204,6 +1253,16 @@ function bokjumeoni(ctx, cx, cy, s, body, band){
   ctx.beginPath(); ctx.arc(-5,-15,4,0,7); ctx.arc(5,-15,4,0,7); ctx.fill();
   // 글자 '복'
   ctx.fillStyle="#fff7e0"; ctx.font=`16px ${FONT_FUN}`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("복",0,9);
+  ctx.restore();
+}
+function fullMoon(ctx, cx, cy, r){
+  ctx.save();
+  const glow=ctx.createRadialGradient(cx,cy,r*0.6,cx,cy,r*1.9); glow.addColorStop(0,"rgba(255,214,120,.45)"); glow.addColorStop(1,"rgba(255,214,120,0)");
+  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(cx,cy,r*1.9,0,7); ctx.fill();
+  const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.1,cx,cy,r); g.addColorStop(0,"#fff6cf"); g.addColorStop(1,"#f6c445");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill();
+  ctx.fillStyle="rgba(214,160,40,.25)";                                         // 달 무늬
+  for(const [dx,dy,rr] of [[-0.3,-0.15,0.18],[0.25,0.2,0.22],[0.05,-0.42,0.1],[-0.1,0.4,0.12]]){ ctx.beginPath(); ctx.arc(cx+dx*r,cy+dy*r,rr*r,0,7); ctx.fill(); }
   ctx.restore();
 }
 function drawSeollal(ctx,x,y,w,h,gutter,rnd){
@@ -1236,9 +1295,11 @@ function classicTitle(ctx, t, cx, y, size, maxW){
 }
 function drawClassicStrip(ctx, x0, shots, rep, t){                              // 600 × 1800
   classicBg(ctx,x0,0,600,1800,t,76);
-  classicTitle(ctx, t, x0+300, 110, 56, 440);
+  classicTitle(ctx, t, x0+300, t.ears ? 98 : 110, 56, t.ears ? 300 : 440);
   const pw=448, ph=336, px=x0+76, top=146, gap=16;
+  if(t.ears==="cat") drawEars(ctx, "cat", px, top-5, pw, 34);
   shots.forEach((s,i)=>classicPhoto(ctx, s, px, top+i*(ph+gap), pw, ph, t));
+  if(t.ears==="dog") drawEars(ctx, "dog", px-5, top-5, pw+10, 36);
   const by = top+4*ph+3*gap;                                                     // ≈ 1538
   const lines = rep.phrase.split("\n"), two = lines.length>1;
   fitText(ctx, lines[0], x0+300, by+(two?60:70), 440, 32, FONT_FUN, t.ink);
@@ -1248,9 +1309,11 @@ function drawClassicStrip(ctx, x0, shots, rep, t){                              
 }
 function drawClassicPiece(ctx, x0, y0, shots, rep, t){                          // 600 × 900
   classicBg(ctx,x0,y0,600,900,t,49);
-  classicTitle(ctx, t, x0+300, y0+70, 36, 440);
+  classicTitle(ctx, t, x0+300, y0+(t.ears ? 62 : 70), 36, t.ears ? 300 : 440);
   const pw=246, ph=328, gx=x0+49, gy=y0+92, gap=10;
+  if(t.ears==="cat") drawEars(ctx, "cat", gx, gy-5, 2*pw+gap, 22);
   shots.forEach((s,i)=>classicPhoto(ctx, s, gx+(i%2)*(pw+gap), gy+Math.floor(i/2)*(ph+gap), pw, ph, t));
+  if(t.ears==="dog") drawEars(ctx, "dog", gx-5, gy-5, 2*pw+gap+10, 24);
   const by = gy+2*ph+gap;                                                        // ≈ 758
   const lines = rep.phrase.split("\n"), two = lines.length>1;
   fitText(ctx, lines[0], x0+300, by+(two?34:42), 440, 22, FONT_FUN, t.ink);
