@@ -201,8 +201,8 @@
         <i class="rec">AI 추천</i>
       </button>
       <button class="mode" data-mode="4">
-        <svg width="34" height="50" viewBox="0 0 34 50"><rect x="1" y="1" width="32" height="48" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="17" y1="1" x2="17" y2="49" stroke="currentColor" stroke-dasharray="3 3"/><line x1="1" y1="25" x2="33" y2="25" stroke="currentColor" stroke-dasharray="3 3"/><g fill="currentColor" opacity=".55"><rect x="4" y="4" width="5" height="7"/><rect x="10" y="4" width="5" height="7"/><rect x="4" y="12" width="5" height="7"/><rect x="10" y="12" width="5" height="7"/><rect x="20" y="4" width="5" height="7"/><rect x="26" y="4" width="5" height="7"/><rect x="20" y="12" width="5" height="7"/><rect x="26" y="12" width="5" height="7"/><rect x="4" y="28" width="5" height="7"/><rect x="10" y="28" width="5" height="7"/><rect x="4" y="36" width="5" height="7"/><rect x="10" y="36" width="5" height="7"/><rect x="20" y="28" width="5" height="7"/><rect x="26" y="28" width="5" height="7"/><rect x="20" y="36" width="5" height="7"/><rect x="26" y="36" width="5" height="7"/></g></svg>
-        <div><b>4장으로 자르기</b><span>미니 네컷 · 3명 이상</span></div>
+        <svg width="34" height="50" viewBox="0 0 34 50"><rect x="1" y="1" width="32" height="48" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="17" y1="1" x2="17" y2="49" stroke="currentColor" stroke-dasharray="3 3"/><line x1="9" y1="1" x2="9" y2="49" stroke="currentColor" stroke-dasharray="2 2"/><line x1="1" y1="25" x2="17" y2="25" stroke="currentColor" stroke-dasharray="2 2"/><g fill="currentColor" opacity=".55"><rect x="3" y="4" width="4" height="4"/><rect x="3" y="10" width="4" height="4"/><rect x="3" y="16" width="4" height="4"/><rect x="11" y="4" width="4" height="4"/><rect x="11" y="10" width="4" height="4"/><rect x="11" y="16" width="4" height="4"/><rect x="3" y="28" width="4" height="4"/><rect x="3" y="34" width="4" height="4"/><rect x="3" y="40" width="4" height="4"/><rect x="11" y="28" width="4" height="4"/><rect x="11" y="34" width="4" height="4"/><rect x="11" y="40" width="4" height="4"/><rect x="21" y="5" width="8" height="8"/><rect x="21" y="16" width="8" height="8"/><rect x="21" y="27" width="8" height="8"/><rect x="21" y="38" width="8" height="6"/></g></svg>
+        <div><b>4장으로 자르기</b><span>미니 네컷 4 + 원본 1 · 3명 이상</span></div>
         <i class="rec">AI 추천</i>
       </button>
     </div>
@@ -308,7 +308,7 @@ const smileOf = b => ((b.mouthSmileLeft||0)+(b.mouthSmileRight||0))/2;
 const browOf  = b => Math.max(b.browInnerUp||0, ((b.browOuterUpLeft||0)+(b.browOuterUpRight||0))/2);
 const frownOf = b => ((b.mouthFrownLeft||0)+(b.mouthFrownRight||0))/2;
 function faceMajority(d, fn){ const n=d.blend.length; if(!n) return false; return d.blend.filter(fn).length >= Math.ceil(n/2); }
-function allFaces(d, fn){ return d.blend.length >= 2 && d.blend.every(fn); }
+function allFaces(d, fn){ const n=d.blend.length; return n >= 2 && d.blend.filter(fn).length >= Math.ceil(n/2); }   // 단체: 절반 이상 성공하면 통과
 function gestureCount(d, name){ return d.hands.filter(h=>h.gesture===name).length; }
 function headRoll(lm){ const a=lm[33], b=lm[263]; const dx=(b.x-a.x)*vw(), dy=(b.y-a.y)*vh(); return Math.abs(Math.atan2(dy,dx)*180/Math.PI); }
 function angleAt(a,b,c){ const v1={x:a.x-b.x,y:(a.y-b.y)*vh()/vw()}, v2={x:c.x-b.x,y:(c.y-b.y)*vh()/vw()};
@@ -356,7 +356,7 @@ const MISSIONS = {
     { emoji:"🦸", title:"슈퍼맨 출동",      desc:"한 팔만 하늘로 쭉!",                   pose:true, check:d=>anyPose(d,p=>{const l=p[15].y<p[0].y, r=p[16].y<p[0].y; return (l&&!r&&p[16].y>p[12].y)||(r&&!l&&p[15].y>p[11].y);}) },
   ],
   group: [
-    { emoji:"✌️", title:"전원 브이",        desc:"모두 다 같이 브이!",                   hands:true, group:true, check:d=>d.faces.length>=2 && gestureCount(d,"Victory")>=d.faces.length },
+    { emoji:"✌️", title:"전원 브이",        desc:"모두 다 같이 브이!",                   hands:true, group:true, check:d=>d.faces.length>=2 && gestureCount(d,"Victory")>=Math.ceil(d.faces.length/2) },
     { emoji:"😆", title:"전원 웃음",        desc:"한 명도 빠짐없이 활짝!",               group:true, check:d=>allFaces(d,b=>smileOf(b)>0.5) },
     { emoji:"😱", title:"전원 놀람",        desc:"다 같이 깜짝 놀란 표정!",              group:true, check:d=>allFaces(d,b=>(b.jawOpen||0)>0.4) },
   ],
@@ -547,7 +547,6 @@ function renderDebug(){
 function setMode(m){
   S.mode = m;
   document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("sel", +b.dataset.mode===m));
-  $("#viewport").classList.toggle("portrait", m===4);
 }
 function show(screen){
   S.screen = screen;
@@ -591,7 +590,7 @@ function pickFresh(list, exclude=[]){
 function pickMissions(n){
   const f1 = pickFresh(MISSIONS.face);
   const hand = pickFresh(MISSIONS.hand);
-  const body = pickFresh(MISSIONS.body);
+  const body = pickFresh(n>=3 ? MISSIONS.body.filter(m=>m.title!=="T자 비행기") : MISSIONS.body);   // 3명 이상이면 T자 비행기 제외
   const last = n>=2 ? pickFresh(MISSIONS.group) : pickFresh(MISSIONS.face, [f1]);
   const set = [f1, hand, body, last];
   recentMissions = [...set.map(m=>m.title), ...recentMissions].slice(0, 12);   // 최근 3번 촬영분 기억
@@ -601,7 +600,7 @@ function pickMissions(n){
 
 function buildThumbs(){
   const t=$("#thumbs"); t.innerHTML="";
-  for(let i=0;i<4;i++){ const d=document.createElement("div"); d.className="thumb"+(S.mode===4?" portrait":""); d.textContent=i+1; t.appendChild(d); }
+  for(let i=0;i<4;i++){ const d=document.createElement("div"); d.className="thumb"; d.textContent=i+1; t.appendChild(d); }
 }
 
 function waitFrames(fn){ return new Promise(res=>{ const tick=()=>{ const v=fn(); if(v!==undefined) res(v); else requestAnimationFrame(tick); }; tick(); }); }
@@ -663,7 +662,7 @@ async function runSession(){
     if(S.abort) break;
 
     const stats = classic ? {} : snapshot();
-    const img = captureFrame(S.mode===4 ? 3/4 : 4/3);
+    const img = captureFrame(4/3);                                               // 인원·모드와 관계없이 4:3 고정
     $("#flash").classList.remove("go"); void $("#flash").offsetWidth; $("#flash").classList.add("go");
     TL.grab(true);
     S.shots.push({ img, success, mission:m, aiOn: !classic && ai.ready, ...stats });
@@ -879,7 +878,9 @@ function drawPiece(ctx, x0, y0, shots, rep, theme){                            /
 }
 function drawCutGuides(ctx, mode, color="rgba(255,255,255,.35)"){
   ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.setLineDash([10,10]);
-  ctx.beginPath(); ctx.moveTo(600,0); ctx.lineTo(600,1800); if(mode===4){ ctx.moveTo(0,900); ctx.lineTo(1200,900); } ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(600,0); ctx.lineTo(600,1800);
+  if(mode===4){ ctx.moveTo(300,0); ctx.lineTo(300,1800); ctx.moveTo(0,900); ctx.lineTo(600,900); }
+  ctx.stroke();
   ctx.restore();
 }
 async function loadFonts(){ try{ await Promise.race([Promise.all([document.fonts.load(`36px "Jua"`), document.fonts.load(`700 40px "Dancing Script"`)]), sleep(1500)]); }catch{} }
@@ -891,17 +892,21 @@ async function compose(shots, mode, rep, theme, qrText){
   const classic = S.style==="classic";
   const strip = classic ? drawClassicStrip : drawStrip, piece = classic ? drawClassicPiece : drawPiece;
   if(mode===2){ strip(ctx,0,shots,rep,theme); strip(ctx,600,shots,rep,theme); }
-  else { for(let r=0;r<2;r++) for(let k=0;k<2;k++) piece(ctx,k*600,r*900,shots,rep,theme); }
+  else {
+    // 4장 모드: 왼쪽 = 미니 네컷 4개(원본의 절반 크기, 2×2) · 오른쪽 = 원본 네컷 1개
+    for(let r=0;r<2;r++) for(let k=0;k<2;k++){ ctx.save(); ctx.translate(k*300, r*900); ctx.scale(.5,.5); strip(ctx,0,shots,rep,theme); ctx.restore(); }
+    strip(ctx,600,shots,rep,theme);
+  }
   drawCutGuides(ctx, mode, classic && !theme.dark ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.35)");
   return c;
 }
 // 다운로드용: 잘린 한 조각을 2배 해상도로
 async function composeDigital(shots, mode, rep, theme){
   await loadFonts();
-  const c=document.createElement("canvas"); c.width=1200; c.height = mode===2 ? 3600 : 1800;
+  const c=document.createElement("canvas"); c.width=1200; c.height=3600;
   const ctx=c.getContext("2d"); ctx.scale(2,2);
   const classic = S.style==="classic";
-  if(mode===2) (classic?drawClassicStrip:drawStrip)(ctx,0,shots,rep,theme); else (classic?drawClassicPiece:drawPiece)(ctx,0,0,shots,rep,theme);
+  (classic?drawClassicStrip:drawStrip)(ctx,0,shots,rep,theme);                    // 두 모드 모두 원본 네컷 한 줄
   return c;
 }
 
@@ -986,7 +991,7 @@ const TL = {
   frames:[], n:0, timer:null, on:false, label:"", step:0, count:null, banner:"", c:null, x:null,
   start(){
     this.frames=[]; this.n=0; this.on=true; this.label=""; this.count=null; this.banner="";
-    const [w,h] = S.mode===4 ? [480,640] : [640,480];
+    const [w,h] = [640,480];
     this.c=document.createElement("canvas"); this.c.width=w; this.c.height=h; this.x=this.c.getContext("2d");
     clearInterval(this.timer); this.timer=setInterval(()=>this.grab(), CONFIG.timelapseMs);
   },
@@ -1104,14 +1109,15 @@ async function finish(){
     cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height);
     say("📸 사진 올리는 중…<br>🎬 영상 만드는 중…"); box.classList.add("show");
     const d=new Date(), stamp=`${d.getMonth()+1}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}${String(d.getSeconds()).padStart(2,"0")}`;
+    const prefix = filePrefix();
     const digital = await composeDigital(S.shots, S.mode, rep, theme);
     let photoDone=false, videoDone=false;
     const status = () => say(`${photoDone?"📸 사진 준비 완료":"📸 사진 올리는 중…"}<br>${videoDone?"🎬 영상 준비 완료":"🎬 영상 만드는 중…"}`);
     const pPhoto = (async()=>{ const b=await new Promise(r=>digital.toBlob(r,"image/jpeg",0.9));
-      const id=await uploadFile(b, `${filePrefix()}_${stamp}.jpg`, 30000); photoDone=true; status(); return id; })();
+      const id=await uploadFile(b, `${prefix}_${stamp}.jpg`, 30000); photoDone=true; status(); return id; })();
     const pVideo = (async()=>{ const v=await buildTimelapse(digital);
       const ext=v.type.includes("mp4")?"mp4":"webm";
-      const id=await uploadFile(v, `${filePrefix()}_${stamp}.${ext}`, 90000); videoDone=true; status(); return id; })();
+      const id=await uploadFile(v, `${prefix}_${stamp}.${ext}`, 90000); videoDone=true; status(); return id; })();
     const [rp, rv] = await Promise.allSettled([pPhoto, pVideo]);
     if(rv.status==="rejected") console.warn("timelapse", rv.reason);
     if(S.sessionId!==sess) return;
