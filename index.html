@@ -8,7 +8,7 @@
 <title>AI 포토부스</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#070b24; --panel:#0f1640; --line:#24306e; --ink:#f2f5ff; --muted:#9aa6d8;
@@ -121,6 +121,36 @@
 
   @media (max-width:760px){ .modes{flex-direction:column;width:100%} .mode{width:100%} .primary{width:100%} }
 
+  /* 일반 네컷 모드 */
+  body.classic{--bg:#141416;--panel:#1f1f23;--line:#34343a;--accent:#ff8fb1;--accent2:#ffcf70;--muted:#b7b2bd}
+  body.classic .primary{background:linear-gradient(135deg,#ff7aa8,#ffb36b);box-shadow:0 8px 30px rgba(255,122,168,.35)}
+  body.classic .mode.sel{border-color:var(--accent);background:#2a2027;box-shadow:0 0 0 4px rgba(255,143,177,.2)}
+  body.classic .mode .rec{background:var(--accent);color:#3a0f1d}
+  body.classic .countchip em{color:var(--accent)}
+  body.classic .livecount{border-color:rgba(255,143,177,.5);color:#ffe3ec}
+  .themes{display:none;width:100%;justify-content:center;gap:8px;flex-wrap:wrap}
+  body.classic .themes{display:flex}
+  .tchip{display:flex;align-items:center;gap:6px;padding:9px 14px;border-radius:14px;font-family:var(--fun);font-size:17px;
+    border:2px solid transparent;box-shadow:0 2px 10px rgba(0,0,0,.25);transition:transform .15s}
+  .tchip.sel{border-color:#fff;box-shadow:0 0 0 3px var(--accent);transform:translateY(-2px)}
+  .tchip:active{transform:scale(.96)}
+  .secret{position:fixed;left:max(10px,env(safe-area-inset-left));bottom:max(8px,env(safe-area-inset-bottom));
+    width:36px;height:36px;border-radius:50%;background:none;color:var(--muted);opacity:.18;font-size:15px;z-index:5}
+  .pinmodal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;place-items:center;z-index:20;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .pinmodal.show{display:grid}
+  .pinbox{background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:22px 22px 18px;width:min(320px,90vw);text-align:center}
+  .pintitle{font-family:var(--fun);font-size:22px}
+  .pinsub{font-size:13px;color:var(--muted);margin:4px 0 14px;min-height:18px}
+  .pindots{display:flex;justify-content:center;gap:14px;margin-bottom:16px}
+  .pindots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--muted)}
+  .pindots i.on{background:var(--ink);border-color:var(--ink)}
+  .pindots.bad{animation:shake .35s}
+  @keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+  .pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .pinpad button{height:56px;border-radius:16px;background:#0000;border:1px solid var(--line);font-size:22px}
+  .pinpad button.t{font-size:15px;color:var(--muted)}
+  .pinpad button:active{background:var(--line)}
+
   /* 인쇄: 결과 이미지 한 장만 4x6 꽉 차게 */
   #printArea{display:none}
   @media print{
@@ -135,7 +165,7 @@
 <body>
 <div id="app">
   <header class="topbar">
-    <div class="brand">🤖 <span id="eventName">오늘의 AI포토</span><small>AI 포즈 미션 네컷</small></div>
+    <div class="brand"><span id="brandIco">🤖</span> <span id="eventName">오늘의 AI포토</span><small id="brandSub">AI 포즈 미션 네컷</small></div>
     <div id="aiStatus" class="chip">🧠 AI 불러오는 중…</div>
   </header>
 
@@ -163,6 +193,7 @@
   <!-- 시작 화면 -->
   <section id="pStart" class="panel active">
     <div id="countChip" class="countchip">👀 AI가 인원을 세는 중…</div>
+    <div id="themes" class="themes"></div>
     <div class="modes">
       <button class="mode" data-mode="2">
         <svg width="34" height="50" viewBox="0 0 34 50"><rect x="1" y="1" width="32" height="48" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="17" y1="1" x2="17" y2="49" stroke="currentColor" stroke-dasharray="3 3"/><g fill="currentColor" opacity=".55"><rect x="5" y="5" width="8" height="8"/><rect x="5" y="16" width="8" height="8"/><rect x="5" y="27" width="8" height="8"/><rect x="5" y="38" width="8" height="6"/><rect x="21" y="5" width="8" height="8"/><rect x="21" y="16" width="8" height="8"/><rect x="21" y="27" width="8" height="8"/><rect x="21" y="38" width="8" height="6"/></g></svg>
@@ -198,6 +229,15 @@
   </section>
 </div>
 
+<button id="secretBtn" class="secret" aria-label="설정">✦</button>
+<div id="pinModal" class="pinmodal">
+  <div class="pinbox">
+    <div class="pintitle">🔒 모드 전환</div>
+    <div class="pinsub" id="pinSub"></div>
+    <div class="pindots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+    <div class="pinpad" id="pinPad"></div>
+  </div>
+</div>
 <div id="printArea"><img id="printImg" alt=""></div>
 
 <script type="module">
@@ -212,12 +252,14 @@ const CONFIG = {
   uploadUrl: "https://script.google.com/macros/s/AKfycbzwtThn3p6NJ24nsY9S9TzorNvcDhEIyDtNVQlI0Lxm8MGApLuPmPURnlSw2AngKfJnAA/exec",                 // QR 다운로드용 Apps Script 웹앱 주소 (비워두면 QR 기능 꺼짐)
   missionTimeout: 6,             // 미션 인식 제한 시간(초). 지나면 그냥 찍힘
   countdown: 3,                  // 촬영 카운트다운(초)
+  classicCountdown: 5,           // 일반 네컷 모드: 컷마다 카운트다운(초)
+  pin: "4209",                    // 모드 전환 암호
   holdMs: 350,                   // 포즈를 이 시간(ms) 이상 유지하면 성공
   resultIdle: 90,                // 결과 화면에서 이 시간(초) 지나면 처음으로
   timelapseMs: 350,              // 타임랩스: 이 간격(ms)마다 한 장씩 저장
   timelapseFps: 16,              // 타임랩스 영상 재생 속도 (클수록 빨라짐)
 };
-if (new URLSearchParams(location.search).has("fast")) { CONFIG.missionTimeout = 1; CONFIG.countdown = 1; }
+if (new URLSearchParams(location.search).has("fast")) { CONFIG.missionTimeout = 1; CONFIG.countdown = 1; CONFIG.classicCountdown = 1; }
 
 const MP_VERSION = "0.10.14";
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
@@ -405,7 +447,7 @@ async function loadAI(){
     ai.face = await make(FaceLandmarker, MODELS.face, { numFaces:8, outputFaceBlendshapes:true });
     if(S.demo) return;
     ai.ready = true;
-    chip.className="chip ok"; chip.textContent="🧠 AI 준비 완료";
+    updateStatusChip();
     // 손·몸 모델은 뒤에서 이어서 로드
     make(GestureRecognizer, MODELS.gesture, { numHands:8 }).then(m=>ai.gesture=m).catch(e=>console.warn("gesture",e));
     make(PoseLandmarker, MODELS.pose, { numPoses:4 }).then(m=>ai.pose=m).catch(e=>console.warn("pose",e));
@@ -413,8 +455,8 @@ async function loadAI(){
     console.warn("AI load failed", e);
     ai.failed = true;
     if(S.demo) return;
-    chip.className="chip warn"; chip.textContent="⚠️ AI 없이 촬영 (인터넷 확인)";
-    $("#countChip").innerHTML = "📸 AI 없이도 촬영할 수 있어요";
+    updateStatusChip();
+    $("#countChip").innerHTML = S.style==="classic" ? "📸 프레임을 고르고 촬영을 시작하세요" : "📸 AI 없이도 촬영할 수 있어요";
   }
 }
 
@@ -455,7 +497,7 @@ function drawOverlay(){
   const r = overlay.getBoundingClientRect(), dpr = devicePixelRatio||1;
   if(overlay.width !== Math.round(r.width*dpr)){ overlay.width=Math.round(r.width*dpr); overlay.height=Math.round(r.height*dpr); }
   const W=overlay.width, H=overlay.height; octx.clearRect(0,0,W,H);
-  if(S.screen!=="start" && !S.debug) return;
+  if((S.screen!=="start" || S.style==="classic") && !S.debug) return;
   const sc = Math.max(W/vw(), H/vh()), dw=vw()*sc, dh=vh()*sc, ox=(W-dw)/2, oy=(H-dh)/2;
   const X = x => W - (ox + x*dw), Y = y => oy + y*dh;     // 거울 모드에 맞춰 좌우 반전
   latest.faces.forEach((f,i)=>{
@@ -482,8 +524,10 @@ function drawOverlay(){
 function renderHeadcount(){
   const n = S.headcount, chip = $("#countChip");
   if(ai.failed || S.demo) return;
-  chip.innerHTML = n===0 ? "👀 카메라 앞에 서 주세요!" : `🧠 AI가 <em>${n}명</em>을 인식했어요 · ${themeFor(n).name}`;
   const rec = n>=3 ? 4 : 2;
+  chip.innerHTML = n===0 ? "👀 카메라 앞에 서 주세요!"
+    : S.style==="classic" ? `👥 <em>${n}명</em> · ${rec}장으로 자르기 추천`
+    : `🧠 AI가 <em>${n}명</em>을 인식했어요 · ${themeFor(n).name}`;
   document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("recommended", n>0 && +b.dataset.mode===rec));
   if(!S.modeTouched && n>0) setMode(rec);
 }
@@ -510,6 +554,7 @@ function show(screen){
   for(const [id,s] of [["#pStart","start"],["#pShoot","shoot"],["#pResult","result"]]) $(id).classList.toggle("active", s===screen);
   $("#viewport").style.display = screen==="result" ? "none" : "";
   $("#resultImg").style.display = screen==="result" ? "block" : "none";
+  $("#secretBtn").style.display = screen==="start" ? "" : "none";
 }
 document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>{ S.modeTouched=true; setMode(+b.dataset.mode); });
 $("#debugBtn").onclick = () => { S.debug=!S.debug; $("#debug").classList.toggle("show",S.debug); $("#debugBtn").textContent = S.debug?"🔍 테스트 끄기":"🔍 인식 테스트"; };
@@ -561,11 +606,13 @@ function buildThumbs(){
 
 function waitFrames(fn){ return new Promise(res=>{ const tick=()=>{ const v=fn(); if(v!==undefined) res(v); else requestAnimationFrame(tick); }; tick(); }); }
 
+const CLASSIC_HINTS = ["브이도 좋고 하트도 좋아요 ✌️","이번엔 다른 포즈로! 🙌","옆 사람과 더 가까이 🤗","마지막! 제일 웃긴 표정으로 🤪"];
 async function runSession(){
   if(!S.demo && video.readyState < 2) return;
   if(S.debug) $("#debugBtn").click();
+  const classic = S.style==="classic";
   S.abort=false; S.n = Math.max(1, S.headcount||1); S.shots=[];
-  S.missions = pickMissions(ai.ready ? S.n : 1);
+  if(!classic) S.missions = pickMissions(ai.ready ? S.n : 1);
   show("shoot"); buildThumbs();
   if(qrEnabled()) TL.start();
   const nav = navigator; try{ S.wake = await nav.wakeLock?.request("screen"); }catch{}
@@ -573,41 +620,53 @@ async function runSession(){
   for(let i=0;i<4;i++){
     if(S.abort) break;
     const th = $("#thumbs").children[i]; th.classList.add("now");
-    const m = S.missions[i];
-    need = { hands:!!m.hands, pose:!!m.pose };
-    $("#mStep").textContent = `MISSION ${i+1} / 4`;
-    $("#mTitle").textContent = `${m.emoji} ${m.title}`;
-    $("#mDesc").textContent = m.desc;
-    TL.step = i+1; TL.label = `${m.emoji} ${m.title}`;
-    $("#mission").classList.add("show");
-    await sleep(700);
+    let m, success=false;
+    if(classic){
+      m = { emoji:"📸", title:`SHOT ${i+1}` };
+      $("#mStep").textContent = `SHOT ${i+1} / 4`;
+      $("#mTitle").textContent = "📸 포즈 준비!";
+      $("#mDesc").textContent = CLASSIC_HINTS[i];
+      TL.label = `📸 SHOT ${i+1}/4`;
+      $("#mission").classList.add("show");
+      await sleep(1000);
+    } else {
+      m = S.missions[i];
+      need = { hands:!!m.hands, pose:!!m.pose };
+      $("#mStep").textContent = `MISSION ${i+1} / 4`;
+      $("#mTitle").textContent = `${m.emoji} ${m.title}`;
+      $("#mDesc").textContent = m.desc;
+      TL.label = `MISSION ${i+1}/4  ${m.emoji} ${m.title}`;
+      $("#mission").classList.add("show");
+      await sleep(700);
 
-    // 미션 인식 대기
-    const limit = (ai.ready ? CONFIG.missionTimeout : Math.min(3,CONFIG.missionTimeout)) * 1000;
-    const t0 = performance.now(); let holdStart = null;
-    const timer=$("#timer"), fill=$("#timerFill"); timer.classList.add("show");
-    const success = await waitFrames(()=>{
-      if(S.abort) return false;
-      const el = performance.now()-t0;
-      fill.style.transform = `scaleX(${Math.max(0,1-el/limit)})`;
-      let ok=false; if(ai.ready){ try{ ok = m.check(latest); }catch{ ok=false; } }
-      if(ok){ holdStart ??= performance.now(); if(performance.now()-holdStart >= CONFIG.holdMs) return true; }
-      else holdStart = null;
-      if(el >= limit) return false;
-    });
-    timer.classList.remove("show");
-    if(S.abort) break;
+      // 미션 인식 대기
+      const limit = (ai.ready ? CONFIG.missionTimeout : Math.min(3,CONFIG.missionTimeout)) * 1000;
+      const t0 = performance.now(); let holdStart = null;
+      const timer=$("#timer"), fill=$("#timerFill"); timer.classList.add("show");
+      success = await waitFrames(()=>{
+        if(S.abort) return false;
+        const el = performance.now()-t0;
+        fill.style.transform = `scaleX(${Math.max(0,1-el/limit)})`;
+        let ok=false; if(ai.ready){ try{ ok = m.check(latest); }catch{ ok=false; } }
+        if(ok){ holdStart ??= performance.now(); if(performance.now()-holdStart >= CONFIG.holdMs) return true; }
+        else holdStart = null;
+        if(el >= limit) return false;
+      });
+      timer.classList.remove("show");
+      if(S.abort) break;
+      await flashBanner(success ? "인식 성공! ✨" : (ai.ready ? "시간 초과! 그냥 찍어요 📸" : "포즈 잡고~ 📸"), 900);
+    }
 
-    await flashBanner(success ? "인식 성공! ✨" : (ai.ready ? "시간 초과! 그냥 찍어요 📸" : "포즈 잡고~ 📸"), 900);
-    for(let c=CONFIG.countdown;c>=1;c--){ if(S.abort) break; popCount(c); TL.count=c; await sleep(1000); }
+    const cd = classic ? CONFIG.classicCountdown : CONFIG.countdown;
+    for(let c=cd;c>=1;c--){ if(S.abort) break; popCount(c); TL.count=c; await sleep(1000); }
     TL.count=null;
     if(S.abort) break;
 
-    const stats = snapshot();
+    const stats = classic ? {} : snapshot();
     const img = captureFrame(S.mode===4 ? 3/4 : 4/3);
     $("#flash").classList.remove("go"); void $("#flash").offsetWidth; $("#flash").classList.add("go");
     TL.grab(true);
-    S.shots.push({ img, success, mission:m, aiOn:ai.ready, ...stats });
+    S.shots.push({ img, success, mission:m, aiOn: !classic && ai.ready, ...stats });
     th.classList.remove("now"); th.classList.add("done"); th.textContent="";
     th.style.backgroundImage = `url(${img.toDataURL("image/jpeg",0.6)})`;
     $("#mission").classList.remove("show");
@@ -818,20 +877,22 @@ function drawPiece(ctx, x0, y0, shots, rep, theme){                            /
   textL(ctx, rep.title, gx+4, rowY-1, lw, 19, FONT_FUN, "#fff");
   textL(ctx, rep.short, gx+4, rowY+19, lw, 11, FONT_UI, hexA(theme.accent,.95), "700");
 }
-function drawCutGuides(ctx, mode){
-  ctx.save(); ctx.strokeStyle="rgba(255,255,255,.35)"; ctx.lineWidth=2; ctx.setLineDash([10,10]);
+function drawCutGuides(ctx, mode, color="rgba(255,255,255,.35)"){
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.setLineDash([10,10]);
   ctx.beginPath(); ctx.moveTo(600,0); ctx.lineTo(600,1800); if(mode===4){ ctx.moveTo(0,900); ctx.lineTo(1200,900); } ctx.stroke();
   ctx.restore();
 }
-async function loadFonts(){ try{ await Promise.race([document.fonts.load(`36px "Jua"`), sleep(1500)]); }catch{} }
+async function loadFonts(){ try{ await Promise.race([Promise.all([document.fonts.load(`36px "Jua"`), document.fonts.load(`700 40px "Dancing Script"`)]), sleep(1500)]); }catch{} }
 // 인쇄용 4×6 한 장 (qrText가 있으면 QR 포함)
 async function compose(shots, mode, rep, theme, qrText){
   await loadFonts();
   const c=document.createElement("canvas"); c.width=1200; c.height=1800;
   const ctx=c.getContext("2d");
-  if(mode===2){ drawStrip(ctx,0,shots,rep,theme); drawStrip(ctx,600,shots,rep,theme); }
-  else { for(let r=0;r<2;r++) for(let k=0;k<2;k++) drawPiece(ctx,k*600,r*900,shots,rep,theme); }
-  drawCutGuides(ctx, mode);
+  const classic = S.style==="classic";
+  const strip = classic ? drawClassicStrip : drawStrip, piece = classic ? drawClassicPiece : drawPiece;
+  if(mode===2){ strip(ctx,0,shots,rep,theme); strip(ctx,600,shots,rep,theme); }
+  else { for(let r=0;r<2;r++) for(let k=0;k<2;k++) piece(ctx,k*600,r*900,shots,rep,theme); }
+  drawCutGuides(ctx, mode, classic && !theme.dark ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.35)");
   return c;
 }
 // 다운로드용: 잘린 한 조각을 2배 해상도로
@@ -839,7 +900,8 @@ async function composeDigital(shots, mode, rep, theme){
   await loadFonts();
   const c=document.createElement("canvas"); c.width=1200; c.height = mode===2 ? 3600 : 1800;
   const ctx=c.getContext("2d"); ctx.scale(2,2);
-  if(mode===2) drawStrip(ctx,0,shots,rep,theme); else drawPiece(ctx,0,0,shots,rep,theme);
+  const classic = S.style==="classic";
+  if(mode===2) (classic?drawClassicStrip:drawStrip)(ctx,0,shots,rep,theme); else (classic?drawClassicPiece:drawPiece)(ctx,0,0,shots,rep,theme);
   return c;
 }
 
@@ -937,9 +999,9 @@ const TL = {
     x.save(); x.textBaseline="middle"; x.textAlign="left";
     rr(x,12,12,196,30,15); x.fillStyle="rgba(7,11,36,.65)"; x.fill();
     x.fillStyle="#ff4d6d"; x.beginPath(); x.arc(30,27,5,0,7); x.fill();
-    x.fillStyle="#fff"; x.font=`14px ${FONT_FUN}`; x.fillText("REC · "+CONFIG.title, 42, 28);
+    x.fillStyle="#fff"; x.font=`14px ${FONT_FUN}`; x.fillText("REC · "+boothTitle(), 42, 28);
     if(this.label){
-      const t=`MISSION ${this.step}/4  ${this.label}`; x.font=`17px ${FONT_FUN}`;
+      const t=this.label; x.font=`17px ${FONT_FUN}`;
       const tw=x.measureText(t).width+28; rr(x,(w-tw)/2,h-52,tw,36,18); x.fillStyle="rgba(7,11,36,.72)"; x.fill();
       x.fillStyle="#fff"; x.textAlign="center"; x.fillText(t, w/2, h-33);
     }
@@ -967,7 +1029,7 @@ async function buildTimelapse(endCanvas){
   const c=document.createElement("canvas"); c.width=w; c.height=h; const x=c.getContext("2d");
   const types=["video/mp4;codecs=avc1.42E01E","video/mp4","video/webm;codecs=vp9","video/webm"];
   const mime=types.find(t=>{ try{ return MediaRecorder.isTypeSupported(t); }catch{ return false; } }) || "";
-  const bg=()=>{ const g=x.createLinearGradient(0,0,0,h); g.addColorStop(0,"#0b1342"); g.addColorStop(1,"#080d33"); x.fillStyle=g; x.fillRect(0,0,w,h); };
+  const bg=()=>{ const g=x.createLinearGradient(0,0,0,h); const cl=S.style==="classic"; g.addColorStop(0,cl?"#1d1a20":"#0b1342"); g.addColorStop(1,cl?"#121114":"#080d33"); x.fillStyle=g; x.fillRect(0,0,w,h); };
   bg();
   const stream=c.captureStream(30);
   const rec=new MediaRecorder(stream, mime ? { mimeType:mime, videoBitsPerSecond:2500000 } : { videoBitsPerSecond:2500000 });
@@ -976,8 +1038,9 @@ async function buildTimelapse(endCanvas){
   rec.start(500);
   // 인트로
   bg(); x.textAlign="center"; x.textBaseline="middle";
-  x.fillStyle="#38e1ff"; x.font=`700 16px ${FONT_UI}`; x.fillText("AI POSE MISSION · MAKING FILM", w/2, h/2-30);
-  x.fillStyle="#fff"; x.font=`44px ${FONT_FUN}`; x.fillText("🎬 "+CONFIG.title, w/2, h/2+16);
+  x.fillStyle = S.style==="classic" ? "#ff8fb1" : "#38e1ff"; x.font=`700 16px ${FONT_UI}`;
+  x.fillText(S.style==="classic" ? "OUR MOMENT · MAKING FILM" : "AI POSE MISSION · MAKING FILM", w/2, h/2-30);
+  x.fillStyle="#fff"; x.font=`44px ${FONT_FUN}`; x.fillText("🎬 "+boothTitle(), w/2, h/2+16);
   await sleep(900);
   // 빨리감기 본편
   const dt=1000/CONFIG.timelapseFps;
@@ -1017,16 +1080,17 @@ function drawQRCanvas(cv, text){
 }
 
 async function finish(){
-  const n = ai.ready ? S.n : 1;
-  const rep = buildReport(S.shots, n);
-  const theme = themeFor(n);
+  const classic = S.style==="classic";
+  let rep, theme;
+  if(classic){ theme = classicTheme(); const ph = pick(theme.phrases); rep = { date: todayStr(), phrase: theme.wrap ? `${theme.wrap} ${ph} ${theme.wrap}` : ph }; }
+  else { const n = ai.ready ? S.n : 1; rep = buildReport(S.shots, n); theme = themeFor(n); }
   const setResult = canvas => {
     S.resultCanvas = canvas; S.resultUrl = canvas.toDataURL("image/jpeg", 0.95);
     $("#resultImg").src = S.resultUrl; $("#printImg").src = S.resultUrl;
   };
   setResult(await compose(S.shots, S.mode, rep, theme, null));
-  $("#rC1").textContent = S.mode===2 ? `${rep.comment}  ${rep.tail}` : `${rep.title}`;
-  $("#rC2").textContent = rep.stats;
+  $("#rC1").textContent = classic ? `${theme.emoji} ${rep.phrase.replace("\n","  ")}` : S.mode===2 ? `${rep.comment}  ${rep.tail}` : `${rep.title}`;
+  $("#rC2").textContent = classic ? `${theme.name} 프레임 · ${rep.date}` : rep.stats;
   show("result");
 
   $("#qrBox").classList.remove("show");
@@ -1044,16 +1108,16 @@ async function finish(){
     let photoDone=false, videoDone=false;
     const status = () => say(`${photoDone?"📸 사진 준비 완료":"📸 사진 올리는 중…"}<br>${videoDone?"🎬 영상 준비 완료":"🎬 영상 만드는 중…"}`);
     const pPhoto = (async()=>{ const b=await new Promise(r=>digital.toBlob(r,"image/jpeg",0.9));
-      const id=await uploadFile(b, `오늘의AI포토_${stamp}.jpg`, 30000); photoDone=true; status(); return id; })();
+      const id=await uploadFile(b, `${filePrefix()}_${stamp}.jpg`, 30000); photoDone=true; status(); return id; })();
     const pVideo = (async()=>{ const v=await buildTimelapse(digital);
       const ext=v.type.includes("mp4")?"mp4":"webm";
-      const id=await uploadFile(v, `오늘의AI포토_${stamp}.${ext}`, 90000); videoDone=true; status(); return id; })();
+      const id=await uploadFile(v, `${filePrefix()}_${stamp}.${ext}`, 90000); videoDone=true; status(); return id; })();
     const [rp, rv] = await Promise.allSettled([pPhoto, pVideo]);
     if(rv.status==="rejected") console.warn("timelapse", rv.reason);
     if(S.sessionId!==sess) return;
     if(rp.status==="fulfilled"){
       const url = new URL("view.html", location.href);
-      url.search = `?p=${rp.value}` + (rv.status==="fulfilled" ? `&v=${rv.value}` : "");
+      url.search = `?p=${rp.value}` + (rv.status==="fulfilled" ? `&v=${rv.value}` : "") + (classic ? "&t=c" : "");
       drawQRCanvas(cv, url.href);
       say(rv.status==="fulfilled" ? "휴대폰 카메라로<br>QR을 찍어주세요" : "휴대폰 카메라로 찍어주세요<br><small>(이번엔 사진만 있어요)</small>");
       left = CONFIG.resultIdle;                                                  // QR이 뜨면 대기 시간 다시 시작
@@ -1063,6 +1127,203 @@ async function finish(){
     }
   }
 }
+
+
+/* =========================================================
+   일반 네컷 모드 (암호로 전환) — 테마 프레임
+   ========================================================= */
+const CLASSIC_THEMES = [
+  { id:"spring", emoji:"🌸", name:"봄", bg:["#ffe3ec","#fff7f1"], ink:"#d4587e", sub:"#e98aa6", title:"Spring Day",
+    phrases:["봄날의 우리","벚꽃처럼 활짝","따스한 봄, 함께라서 좋아"], wrap:"🌸", deco:["🌸","🌸","🌷","🌼","🦋"] },
+  { id:"summer", emoji:"🌊", name:"여름", bg:["#9fdcff","#effbff"], ink:"#0a6a9e", sub:"#3a9ccc", title:"Summer Vibes",
+    phrases:["여름이었다","시원하게 한 컷","뜨거운 여름, 우리의 청춘"], wrap:"☀️", deco:["🌊","🍉","☀️","🐚","🏖️"] },
+  { id:"autumn", emoji:"🍁", name:"가을", bg:["#f6d2a6","#fff3e3"], ink:"#a8481f", sub:"#c9784a", title:"Autumn Mood",
+    phrases:["가을 타는 중","단풍보다 예쁜 우리","선선한 가을의 기록"], wrap:"🍂", deco:["🍁","🍂","🍁","🌰","🍄"] },
+  { id:"winter", emoji:"❄️", name:"겨울", bg:["#d9e6ff","#f7faff"], ink:"#335aa6", sub:"#6f8fcc", title:"Winter Memories",
+    phrases:["❄️🩵☃️❄️⛄🩵❄️"], deco:["❄️","☃️","❄️","🧣","⛄"], snow:"#ffffff" },
+  { id:"black", emoji:"🖤", name:"검정", bg:["#141414","#262626"], ink:"#ffffff", sub:"#bdbdbd", title:"TODAY", minimal:true, dark:true,
+    phrases:["Our moment"], deco:[] },
+  { id:"white", emoji:"🤍", name:"흰색", bg:["#ffffff","#f3f3f3"], ink:"#222222", sub:"#8a8a8a", title:"TODAY", minimal:true,
+    phrases:["오늘의 기록","Our moment","지금 이 순간"], deco:[] },
+  { id:"birthday", emoji:"🎂", name:"생일", bg:["#fff0f6","#ffeacc"], ink:"#e0527a", sub:"#f08aa5", title:"Happy Birthday",
+    phrases:["🎈한살더먹기! 🎂"], deco:["🎈","🎉","🎂","🎁","✨","🎈"], confetti:true },
+  { id:"xmas", emoji:"🎄", name:"크리스마스", bg:["#1d4d33","#0f2d1f"], ink:"#ffffff", sub:"#f3c969", title:"Merry Christmas", titleWrap:"🎄", dark:true,
+    phrases:["🎁 메리클쑤 🎅"], deco:["🎄","⭐","🎁","❄️","🔔"], snow:"#ffffff" },
+  { id:"newyear", emoji:"🪁", name:"설날", bg:["#fbf4e6","#f2e3c8"], ink:"#b3283a", sub:"#2f6b4f", title:"Happy New Year", titleWrap:"✨",
+    phrases:["올 한해두 행복하기\nผ( •̀ .̫ •́ )ง"], deco:["🪁","🌸","🪁"], seollal:true },
+];
+const classicTheme = () => CLASSIC_THEMES.find(t=>t.id===S.classicTheme) || CLASSIC_THEMES[0];
+const boothTitle = () => S.style==="classic" ? "오늘의 네컷" : CONFIG.title;
+const filePrefix = () => S.style==="classic" ? "오늘의네컷" : "오늘의AI포토";
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}. ${String(d.getMonth()+1).padStart(2,"0")}. ${String(d.getDate()).padStart(2,"0")}`; }
+const FONT_SCRIPT = `"Dancing Script","Snell Roundhand",cursive`;
+
+function classicBg(ctx,x,y,w,h,t,gutter){
+  const g=ctx.createLinearGradient(x,y,x,y+h); g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]);
+  ctx.fillStyle=g; ctx.fillRect(x,y,w,h);
+  ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+  const rnd = seeded(h*3+w+t.id.length*97);
+  if(t.minimal){
+    ctx.strokeStyle=hexA(t.dark?"#ffffff":"#000000", .18); ctx.lineWidth=1.5; ctx.strokeRect(x+18,y+18,w-36,h-36);
+    for(let k=0;k<Math.round(h/300);k++) sparkle(ctx, rnd()<.5 ? x+30+rnd()*(gutter-40) : x+w-gutter+10+rnd()*(gutter-40), y+60+rnd()*(h-120), 4+rnd()*4, hexA(t.dark?"#ffffff":"#000000",.35));
+  }
+  if(t.snow){ ctx.fillStyle=hexA(t.snow,.55); for(let k=0;k<h/9;k++){ ctx.beginPath(); ctx.arc(x+rnd()*w, y+rnd()*h, 1.5+rnd()*3, 0, 7); ctx.fill(); } }
+  if(t.confetti){ const cs=["#ff7aa8","#ffc94d","#7ad3ff","#a98bff","#7be3b0"];
+    for(let k=0;k<h/14;k++){ ctx.save(); ctx.translate(x+rnd()*w, y+rnd()*h); ctx.rotate(rnd()*6.28);
+      ctx.fillStyle=cs[Math.floor(rnd()*cs.length)]; ctx.globalAlpha=.7; ctx.fillRect(-5,-2.5,10,5); ctx.restore(); } }
+  if(t.seollal) drawSeollal(ctx,x,y,w,h,gutter,rnd);
+  if(t.deco.length){
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    const n=Math.round(h/95);
+    for(let k=0;k<n;k++){
+      const left=k%2===0, size=24+rnd()*20;
+      const cx = left ? x+10+rnd()*(gutter-14) : x+w-gutter+4+rnd()*(gutter-14);
+      ctx.save(); ctx.translate(cx, y+30+rnd()*(h-60)); ctx.rotate((rnd()-.5)*0.9); ctx.globalAlpha=.9;
+      ctx.font=`${size}px sans-serif`; ctx.fillStyle="#000"; ctx.fillText(t.deco[Math.floor(rnd()*t.deco.length)],0,0); ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+// 설날: 색동 띠 + 복주머니
+const SAEKDONG = ["#e8434b","#f6c445","#3ba86a","#3b6fd1","#f28bb3","#ffffff","#8a56c9"];
+function saekdongBand(ctx, x, y, w, h, vertical){
+  const n = SAEKDONG.length, step = (vertical ? h : w) / (n*2);
+  for(let i=0;i<n*2;i++){ ctx.fillStyle = SAEKDONG[i%n];
+    if(vertical) ctx.fillRect(x, y+i*step, w, step+0.5); else ctx.fillRect(x+i*step, y, step+0.5, h); }
+}
+function bokjumeoni(ctx, cx, cy, s, body, band){
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(s/40, s/40);
+  // 몸통
+  ctx.beginPath(); ctx.moveTo(-14,-10); ctx.bezierCurveTo(-26,2,-24,26,0,28); ctx.bezierCurveTo(24,26,26,2,14,-10); ctx.closePath();
+  ctx.fillStyle=body; ctx.fill();
+  // 주름 입구
+  ctx.beginPath(); ctx.moveTo(-14,-10); ctx.quadraticCurveTo(-18,-22,-8,-24); ctx.lineTo(8,-24); ctx.quadraticCurveTo(18,-22,14,-10); ctx.closePath();
+  ctx.fillStyle=body; ctx.fill(); ctx.fillStyle="rgba(0,0,0,.12)"; ctx.fill();
+  // 금색 띠 + 매듭
+  ctx.fillStyle=band; ctx.fillRect(-15,-12,30,4);
+  ctx.beginPath(); ctx.arc(-5,-15,4,0,7); ctx.arc(5,-15,4,0,7); ctx.fill();
+  // 글자 '복'
+  ctx.fillStyle="#fff7e0"; ctx.font=`16px ${FONT_FUN}`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("복",0,9);
+  ctx.restore();
+}
+function drawSeollal(ctx,x,y,w,h,gutter,rnd){
+  // 위·아래 색동 띠
+  saekdongBand(ctx, x, y, w, 16, false); saekdongBand(ctx, x, y+h-16, w, 16, false);
+  // 은은한 구름 문양
+  ctx.strokeStyle="rgba(179,40,58,.12)"; ctx.lineWidth=2;
+  for(let k=0;k<Math.round(h/160);k++){ const cx = k%2 ? x+gutter*.5 : x+w-gutter*.5, cy=y+60+rnd()*(h-120);
+    ctx.beginPath(); ctx.arc(cx,cy,10,Math.PI,0); ctx.arc(cx+14,cy,7,Math.PI,0); ctx.arc(cx-12,cy+2,6,Math.PI,0); ctx.stroke(); }
+  // 복주머니
+  const pouches=[["#e8434b","#f6c445"],["#3b6fd1","#f6c445"],["#f28bb3","#f6c445"],["#3ba86a","#f6c445"]];
+  for(let k=0;k<Math.max(2,Math.round(h/360));k++){
+    const left=k%2===0, [b,g]=pouches[k%pouches.length];
+    bokjumeoni(ctx, left ? x+gutter*.5 : x+w-gutter*.5, y+90+rnd()*(h-180), 34+rnd()*10, b, g);
+  }
+}
+function classicPhoto(ctx, shot, x,y,w,h,t){
+  ctx.save();
+  if(t.id==="white"){ ctx.drawImage(shot.img,x,y,w,h); ctx.strokeStyle="#e2e2e2"; ctx.lineWidth=1; ctx.strokeRect(x,y,w,h); }
+  else {
+    ctx.shadowColor="rgba(0,0,0,.18)"; ctx.shadowBlur=10; ctx.shadowOffsetY=3;
+    ctx.fillStyle = t.dark && t.minimal ? "#2c2c2c" : "#ffffff"; ctx.fillRect(x-5,y-5,w+10,h+10);
+    ctx.shadowColor="transparent"; ctx.drawImage(shot.img,x,y,w,h);
+  }
+  ctx.restore();
+}
+function classicTitle(ctx, t, cx, y, size, maxW){
+  if(t.minimal) fitText(ctx, t.title.split("").join(" "), cx, y, maxW, Math.round(size*.72), FONT_UI, t.ink, "800");
+  else fitText(ctx, t.titleWrap ? `${t.titleWrap} ${t.title} ${t.titleWrap}` : t.title, cx, y, maxW, size, FONT_SCRIPT, t.ink, "700");
+}
+function drawClassicStrip(ctx, x0, shots, rep, t){                              // 600 × 1800
+  classicBg(ctx,x0,0,600,1800,t,76);
+  classicTitle(ctx, t, x0+300, 110, 56, 440);
+  const pw=448, ph=336, px=x0+76, top=146, gap=16;
+  shots.forEach((s,i)=>classicPhoto(ctx, s, px, top+i*(ph+gap), pw, ph, t));
+  const by = top+4*ph+3*gap;                                                     // ≈ 1538
+  const lines = rep.phrase.split("\n"), two = lines.length>1;
+  fitText(ctx, lines[0], x0+300, by+(two?60:70), 440, 32, FONT_FUN, t.ink);
+  if(two) fitText(ctx, lines[1], x0+300, by+100, 440, 28, FONT_UI, t.ink, "600");
+  fitText(ctx, rep.date, x0+300, by+(two?138:112), 440, 19, FONT_UI, t.sub, "700");
+  fitText(ctx, "#오늘의네컷", x0+300, by+(two?170:148), 440, 15, FONT_UI, hexA(t.sub.length===7?t.sub:"#888888", .85), "600");
+}
+function drawClassicPiece(ctx, x0, y0, shots, rep, t){                          // 600 × 900
+  classicBg(ctx,x0,y0,600,900,t,49);
+  classicTitle(ctx, t, x0+300, y0+70, 36, 440);
+  const pw=246, ph=328, gx=x0+49, gy=y0+92, gap=10;
+  shots.forEach((s,i)=>classicPhoto(ctx, s, gx+(i%2)*(pw+gap), gy+Math.floor(i/2)*(ph+gap), pw, ph, t));
+  const by = gy+2*ph+gap;                                                        // ≈ 758
+  const lines = rep.phrase.split("\n"), two = lines.length>1;
+  fitText(ctx, lines[0], x0+300, by+(two?34:42), 440, 22, FONT_FUN, t.ink);
+  if(two) fitText(ctx, lines[1], x0+300, by+60, 440, 18, FONT_UI, t.ink, "600");
+  fitText(ctx, rep.date, x0+300, by+(two?84:70), 440, 14, FONT_UI, t.sub, "700");
+}
+
+/* ---------- 모드 전환 / 테마 선택 UI ---------- */
+S.style = (()=>{ try{ return localStorage.getItem("boothStyle")==="classic" ? "classic" : "ai"; }catch{ return "ai"; } })();
+S.classicTheme = (()=>{ try{ return localStorage.getItem("boothTheme") || "spring"; }catch{ return "spring"; } })();
+function updateStatusChip(){
+  const chip=$("#aiStatus"); if(S.demo) return;
+  if(S.style==="classic"){ chip.className="chip ok"; chip.textContent="📸 촬영 준비 완료"; return; }
+  if(ai.ready){ chip.className="chip ok"; chip.textContent="🧠 AI 준비 완료"; }
+  else if(ai.failed){ chip.className="chip warn"; chip.textContent="⚠️ AI 없이 촬영 (인터넷 확인)"; }
+  else { chip.className="chip"; chip.textContent="🧠 AI 불러오는 중…"; }
+}
+function renderThemes(){
+  const box=$("#themes"); box.innerHTML="";
+  for(const t of CLASSIC_THEMES){
+    const b=document.createElement("button"); b.className="tchip"+(t.id===S.classicTheme?" sel":"");
+    b.style.background=`linear-gradient(135deg,${t.bg[0]},${t.bg[1]})`; b.style.color=t.ink;
+    b.textContent=`${t.emoji} ${t.name}`;
+    b.onclick=()=>{ S.classicTheme=t.id; try{ localStorage.setItem("boothTheme",t.id); }catch{} renderThemes(); };
+    box.appendChild(b);
+  }
+}
+function applyStyle(){
+  const classic = S.style==="classic";
+  document.body.classList.toggle("classic", classic);
+  $("#brandIco").textContent = classic ? "📸" : "🤖";
+  $("#eventName").textContent = classic ? "오늘의 네컷" : CONFIG.title;
+  $("#brandSub").textContent = classic ? "인생네컷" : "AI 포즈 미션 네컷";
+  document.title = classic ? "오늘의 네컷" : "AI 포토부스";
+  document.querySelectorAll(".mode .rec").forEach(r=>r.textContent = classic ? "추천" : "AI 추천");
+  $("#debugBtn").style.display = classic ? "none" : "";
+  renderThemes(); updateStatusChip();
+  if(S.demo) return;
+  if(ai.failed) $("#countChip").innerHTML = classic ? "📸 프레임을 고르고 촬영을 시작하세요" : "📸 AI 없이도 촬영할 수 있어요";
+  else renderHeadcount();
+}
+// 숨은 버튼 + 암호
+let pinBuf="";
+function pinRender(bad){ const d=$("#pinDots"); [...d.children].forEach((i,k)=>i.classList.toggle("on",k<pinBuf.length));
+  if(bad){ d.classList.remove("bad"); void d.offsetWidth; d.classList.add("bad"); } }
+function openPin(){
+  pinBuf=""; pinRender();
+  $("#pinSub").textContent = S.style==="classic" ? "AI 포토 모드로 돌아가요" : "일반 네컷 모드로 바꿔요";
+  $("#pinModal").classList.add("show");
+}
+function closePin(){ $("#pinModal").classList.remove("show"); }
+(function buildPad(){
+  const pad=$("#pinPad");
+  ["1","2","3","4","5","6","7","8","9","취소","0","⌫"].forEach(k=>{
+    const b=document.createElement("button"); b.textContent=k; if(k==="취소"||k==="⌫") b.className="t";
+    b.onclick=()=>{
+      if(k==="취소") return closePin();
+      if(k==="⌫"){ pinBuf=pinBuf.slice(0,-1); return pinRender(); }
+      if(pinBuf.length>=4) return;
+      pinBuf+=k; pinRender();
+      if(pinBuf.length===4){
+        if(pinBuf===CONFIG.pin){
+          S.style = S.style==="classic" ? "ai" : "classic";
+          try{ localStorage.setItem("boothStyle", S.style); }catch{}
+          setTimeout(()=>{ closePin(); applyStyle(); }, 150);
+        } else { setTimeout(()=>{ pinBuf=""; pinRender(true); }, 150); }
+      }
+    };
+    pad.appendChild(b);
+  });
+})();
+$("#secretBtn").onclick = openPin;
+$("#pinModal").onclick = e => { if(e.target.id==="pinModal") closePin(); };
 
 /* =========================================================
    인쇄 / 저장
@@ -1075,7 +1336,7 @@ function doPrint(){
 async function doSave(){
   clearInterval(S.idleTimer);
   const blob = await new Promise(r=>S.resultCanvas.toBlob(r,"image/jpeg",0.95));
-  const file = new File([blob], `ai-photobooth-${Date.now()}.jpg`, { type:"image/jpeg" });
+  const file = new File([blob], `${filePrefix()}_${Date.now()}.jpg`, { type:"image/jpeg" });
   if(navigator.canShare?.({ files:[file] })){
     try{ await navigator.share({ files:[file] }); return; }catch(e){ if(e.name==="AbortError") return; }
   }
@@ -1085,6 +1346,7 @@ async function doSave(){
 
 /* 시작 */
 setMode(2);
+applyStyle();
 startCamera();
 loadAI();
 requestAnimationFrame(loop);
