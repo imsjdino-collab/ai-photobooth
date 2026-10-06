@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AI 포토부스</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0f1f; --panel:#181a33; --line:#2a2d52; --ink:#f4f5ff; --muted:#a3a7d6;
+    --accent:#7c5cff; --accent2:#22d3c5; --ok:#3ee08f; --warn:#ffb547;
+    --fun:"Jua","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;overflow:hidden;
+    -webkit-user-select:none;user-select:none;touch-action:manipulation}
+  button{font:inherit;color:inherit;border:0;cursor:pointer}
+
+  #app{height:100dvh;display:grid;grid-template-rows:auto 1fr auto;
+    padding:max(12px,env(safe-area-inset-top)) 16px max(14px,env(safe-area-inset-bottom))}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:10px}
+  .brand{font-family:var(--fun);font-size:clamp(22px,3vw,30px);letter-spacing:.5px}
+  .brand small{font-size:.55em;color:var(--muted);margin-left:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;
+    background:var(--panel);border:1px solid var(--line);font-size:14px;color:var(--muted);white-space:nowrap}
+  .chip.ok{color:var(--ok);border-color:#2c6b4f}
+  .chip.warn{color:var(--warn);border-color:#6b5228}
+
+  /* 카메라 영역 */
+  .stage{container-type:size;display:grid;place-items:center;min-height:0}
+  .viewport{position:relative;border-radius:22px;overflow:hidden;background:#000;
+    box-shadow:0 0 0 3px var(--line),0 20px 60px rgba(0,0,0,.5);
+    width:min(100cqw, calc(100cqh * 4 / 3));aspect-ratio:4/3;transition:width .3s}
+  .viewport.portrait{width:min(100cqw, calc(100cqh * 3 / 4));aspect-ratio:3/4}
+  .viewport video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .viewport canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .result-img{display:none;max-width:100cqw;max-height:100cqh;border-radius:10px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6)}
+
+  .mission{position:absolute;left:50%;top:16px;transform:translateX(-50%) translateY(-140%);
+    background:rgba(14,15,31,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border:2px solid rgba(255,255,255,.18);border-radius:20px;padding:12px 26px 14px;text-align:center;
+    transition:transform .35s cubic-bezier(.2,1.4,.4,1);min-width:min(80%,360px)}
+  .mission.show{transform:translateX(-50%) translateY(0)}
+  .mission .step{font-size:13px;color:var(--accent2);letter-spacing:1px}
+  .mission .title{font-family:var(--fun);font-size:clamp(26px,4.2cqw,44px);line-height:1.15;margin:2px 0}
+  .mission .desc{font-size:clamp(14px,1.8cqw,19px);color:#dfe1ff}
+
+  .timer{position:absolute;left:0;right:0;bottom:0;height:10px;background:rgba(0,0,0,.4);opacity:0;transition:opacity .2s}
+  .timer.show{opacity:1}
+  .timer i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));transform-origin:left}
+
+  .banner{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;
+    font-family:var(--fun);font-size:clamp(30px,5.5cqw,58px);padding:12px 30px;border-radius:20px;
+    background:rgba(14,15,31,.78);white-space:nowrap;transition:all .25s cubic-bezier(.2,1.4,.4,1)}
+  .banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  .count{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--fun);
+    font-size:clamp(120px,24cqw,260px);color:#fff;text-shadow:0 6px 40px rgba(0,0,0,.6);opacity:0}
+  .count.pop{animation:pop .9s ease-out}
+  @keyframes pop{0%{opacity:0;transform:scale(1.8)}20%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(.8)}}
+  .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+  .flash.go{animation:flash .5s ease-out}
+  @keyframes flash{0%{opacity:1}100%{opacity:0}}
+  .camerr{position:absolute;inset:0;display:none;place-items:center;align-content:center;gap:16px;text-align:center;padding:30px;
+    font-size:18px;line-height:1.6;color:var(--muted);background:#0b0c19}
+  .camerr .secondary{color:var(--ink)}
+  .viewport .democam{display:none;object-fit:cover}
+  .viewport.demo .democam{display:block}
+  .viewport.demo video{display:none}
+
+  /* 하단 패널 */
+  .panel{display:none;padding-top:14px;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .panel.active{display:flex}
+  .modes{display:flex;gap:12px}
+  .mode{position:relative;display:flex;align-items:center;gap:12px;padding:12px 18px 12px 14px;border-radius:18px;
+    background:var(--panel);border:2px solid var(--line);text-align:left;transition:all .15s}
+  .mode b{display:block;font-family:var(--fun);font-weight:400;font-size:20px}
+  .mode span{font-size:13px;color:var(--muted)}
+  .mode.sel{border-color:var(--accent);background:#231f4d;box-shadow:0 0 0 4px rgba(124,92,255,.25)}
+  .mode .rec{position:absolute;top:-10px;right:10px;font-size:11px;padding:2px 8px;border-radius:99px;
+    background:var(--accent2);color:#06302c;font-weight:700;display:none}
+  .mode.recommended .rec{display:block}
+  .primary{font-family:var(--fun);font-size:26px;padding:16px 34px;border-radius:20px;
+    background:linear-gradient(135deg,var(--accent),#b05cff);box-shadow:0 8px 30px rgba(124,92,255,.45)}
+  .primary:active,.mode:active,.secondary:active{transform:scale(.97)}
+  .secondary{font-family:var(--fun);font-size:20px;padding:14px 22px;border-radius:18px;background:var(--panel);border:2px solid var(--line)}
+  .ghost{font-size:13px;color:var(--muted);background:none;padding:8px;text-decoration:underline}
+  .countchip{font-family:var(--fun);font-size:20px;padding:10px 18px;border-radius:16px;background:var(--panel);border:2px solid var(--line)}
+  .countchip em{font-style:normal;color:var(--accent2)}
+
+  .thumbs{display:flex;gap:10px}
+  .thumb{width:86px;aspect-ratio:4/3;border-radius:10px;border:2px dashed var(--line);display:grid;place-items:center;
+    color:var(--muted);font-size:13px;overflow:hidden;background:#0b0c19 center/cover no-repeat}
+  .thumb.portrait{width:60px;aspect-ratio:3/4}
+  .thumb.done{border-style:solid;border-color:var(--accent2)}
+  .thumb.now{border-color:var(--accent);color:var(--ink)}
+
+  .report{max-width:min(620px,100%);text-align:center}
+  .report .c1{font-family:var(--fun);font-size:24px}
+  .report .c2{font-size:15px;color:var(--muted);margin-top:4px}
+  .idle{font-size:13px;color:var(--muted);width:100%;text-align:center}
+
+  .debug{position:absolute;left:10px;bottom:16px;background:rgba(0,0,0,.7);border-radius:12px;padding:10px 12px;
+    font:12px/1.5 ui-monospace,Menlo,monospace;color:#cfe;display:none;max-width:60%;white-space:pre-wrap}
+  .debug.show{display:block}
+
+  @media (max-width:760px){ .modes{flex-direction:column;width:100%} .mode{width:100%} .primary{width:100%} }
+
+  /* 인쇄: 결과 이미지 한 장만 4x6 꽉 차게 */
+  #printArea{display:none}
+  @media print{
+    @page{size:4in 6in;margin:0}
+    html,body{height:auto;overflow:visible;background:#fff}
+    body > *{display:none !important}
+    #printArea{display:block !important;width:4in;height:6in;margin:0;padding:0}
+    #printArea img{display:block;width:100%;height:100%;object-fit:cover}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">🤖 <span id="eventName">AI교실 포토부스</span><small>AI 포즈 미션 네컷</small></div>
+    <div id="aiStatus" class="chip">🧠 AI 불러오는 중…</div>
+  </header>
+
+  <main class="stage">
+    <div id="viewport" class="viewport">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="demoCam" class="democam" width="1280" height="720"></canvas>
+      <canvas id="overlay"></canvas>
+      <div id="mission" class="mission">
+        <div class="step" id="mStep">MISSION 1 / 4</div>
+        <div class="title" id="mTitle">😆 광대 승천</div>
+        <div class="desc" id="mDesc">최대한 활짝 웃어주세요!</div>
+      </div>
+      <div id="timer" class="timer"><i id="timerFill"></i></div>
+      <div id="banner" class="banner"></div>
+      <div id="count" class="count"></div>
+      <div id="flash" class="flash"></div>
+      <div id="camErr" class="camerr"></div>
+      <div id="debug" class="debug"></div>
+    </div>
+    <img id="resultImg" class="result-img" alt="촬영 결과">
+  </main>
+
+  <!-- 시작 화면 -->
+  <section id="pStart" class="panel active">
+    <div id="countChip" class="countchip">👀 AI가 인원을 세는 중…</div>
+    <div class="modes">
+      <button class="mode" data-mode="2">
+        <svg width="34" height="50" viewBox="0 0 34 50"><rect x="1" y="1" width="32" height="48" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="17" y1="1" x2="17" y2="49" stroke="currentColor" stroke-dasharray="3 3"/><g fill="currentColor" opacity=".55"><rect x="5" y="5" width="8" height="8"/><rect x="5" y="16" width="8" height="8"/><rect x="5" y="27" width="8" height="8"/><rect x="5" y="38" width="8" height="6"/><rect x="21" y="5" width="8" height="8"/><rect x="21" y="16" width="8" height="8"/><rect x="21" y="27" width="8" height="8"/><rect x="21" y="38" width="8" height="6"/></g></svg>
+        <div><b>2장으로 자르기</b><span>세로 네컷 스트립 · 1~2명</span></div>
+        <i class="rec">AI 추천</i>
+      </button>
+      <button class="mode" data-mode="4">
+        <svg width="34" height="50" viewBox="0 0 34 50"><rect x="1" y="1" width="32" height="48" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="17" y1="1" x2="17" y2="49" stroke="currentColor" stroke-dasharray="3 3"/><line x1="1" y1="25" x2="33" y2="25" stroke="currentColor" stroke-dasharray="3 3"/><g fill="currentColor" opacity=".55"><rect x="4" y="4" width="5" height="7"/><rect x="10" y="4" width="5" height="7"/><rect x="4" y="12" width="5" height="7"/><rect x="10" y="12" width="5" height="7"/><rect x="20" y="4" width="5" height="7"/><rect x="26" y="4" width="5" height="7"/><rect x="20" y="12" width="5" height="7"/><rect x="26" y="12" width="5" height="7"/><rect x="4" y="28" width="5" height="7"/><rect x="10" y="28" width="5" height="7"/><rect x="4" y="36" width="5" height="7"/><rect x="10" y="36" width="5" height="7"/><rect x="20" y="28" width="5" height="7"/><rect x="26" y="28" width="5" height="7"/><rect x="20" y="36" width="5" height="7"/><rect x="26" y="36" width="5" height="7"/></g></svg>
+        <div><b>4장으로 자르기</b><span>미니 네컷 · 3명 이상</span></div>
+        <i class="rec">AI 추천</i>
+      </button>
+    </div>
+    <button id="startBtn" class="primary">📸 촬영 시작</button>
+    <button id="debugBtn" class="ghost">🔍 인식 테스트</button>
+  </section>
+
+  <!-- 촬영 화면 -->
+  <section id="pShoot" class="panel">
+    <div id="thumbs" class="thumbs"></div>
+    <button id="cancelBtn" class="ghost">✕ 그만하기</button>
+  </section>
+
+  <!-- 결과 화면 -->
+  <section id="pResult" class="panel">
+    <div class="report"><div class="c1" id="rC1"></div><div class="c2" id="rC2"></div></div>
+    <button id="printBtn" class="primary">🖨️ 인쇄하기</button>
+    <button id="saveBtn" class="secondary">💾 저장</button>
+    <button id="homeBtn" class="secondary">🏠 처음으로</button>
+    <div class="idle" id="idleMsg"></div>
+  </section>
+</div>
+
+<div id="printArea"><img id="printImg" alt=""></div>
+
+<script type="module">
+/* =========================================================
+   설정 — 행사에 맞게 여기만 바꾸면 돼요
+   ========================================================= */
+const CONFIG = {
+  eventName: "AI교실 포토부스",   // 프레임 상단에 들어가는 행사 이름
+  missionTimeout: 7,             // 미션 인식 제한 시간(초). 지나면 그냥 찍힘
+  countdown: 3,                  // 촬영 카운트다운(초)
+  holdMs: 350,                   // 포즈를 이 시간(ms) 이상 유지하면 성공
+  resultIdle: 60,                // 결과 화면에서 이 시간(초) 지나면 처음으로
+};
+if (new URLSearchParams(location.search).has("fast")) { CONFIG.missionTimeout = 1; CONFIG.countdown = 1; }
+
+const MP_VERSION = "0.10.14";
+const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
+const MODELS = {
+  face: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+  gesture: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+  pose: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+};
+
+/* =========================================================
+   AI 리포트 문구
+   ========================================================= */
+const PHRASES = {
+  happy: ["광대 데이터 과부하 감지! 😆","행복 지수 측정 불가 수준 📈","웃음 학습률 100% 달성 💯","이 미소, 학습 데이터로 저장함 💾","광대가 서버를 뚫고 나감 🚀","오늘의 행복 알고리즘 최적화 ✨","미소 해상도 8K 확인 📸"],
+  surprise: ["리액션 폭발! 예능 출연 가능 📺","충격 데이터 대량 수집 완료 😱","턱 관절 가동률 최고치 🦷","AI도 같이 놀라버림 🤖","이 표정, 밈 생성 확률 99% 🤣","리액션 장인 모드 감지 🎬"],
+  perfect: ["AI보다 정확한 인간 등장 🏅","미션 퍼펙트! 인간 승리 🏆","오류 0건, 완벽한 실행 ✅","프롬프트 이해력 만점 💬","튜링 테스트 가볍게 통과 🧪","AI가 오히려 배워감 📚"],
+  mid: ["적당히 성실한 학습자 감지 📝","성공과 자유 사이 균형 완벽 ⚖️","반은 미션, 반은 개성 🎨","인간미 넘치는 정확도 🫶","정답보다 재미를 택한 그대들 🎈"],
+  chaos: ["AI도 해석 불가한 영혼들 🌀","미션? 그게 뭔데 먹는 건가 🍙","예측 불가 데이터 수집 완료 🎲","AI 판단 회로 혼란 중 😵‍💫","규칙은 깨라고 있는 것 💥","창의성이 미션을 이겼다 🦄","학습 데이터 밖의 존재 발견 👽"],
+  sync: ["완벽한 동기화 성공 🤝","멀티 에이전트 협업 우수 🧩","팀워크 알고리즘 최적화 ⚙️","한 몸처럼 움직이는 데이터 🔗","이 팀, 병렬처리 가능 🖥️"],
+  chic: ["시크함 감지, 감정 암호화됨 🔒","포커페이스 레벨 MAX 🃏","감정 데이터 비공개 설정 🙈","도도함 98% 분석 완료 😎","표정 대신 분위기로 승부 🌙"],
+  multi: ["표정 변환 속도 측정 불가 ⚡","4컷 4색, 다중 인격 감지 🎭","표정 레퍼토리 풍부함 인정 🌈","1인 4역 연기 완료 🎞️"],
+  solo: ["단독 학습 모드 완료 ⭐","솔로 데이터 품질 최상 💎","혼자서도 꽉 찬 프레임 🖼️","1인 기업급 존재감 👑"],
+  big: ["대규모 데이터셋 확보 🗂️","프레임 용량 초과 직전 📦","얼굴 인식 풀가동 중 🔍","이 정도면 학급 단체사진 🏫"],
+};
+const TAILS = ["오늘의 추천: 이 사진 액자 각 🖼️","저장 강력 추천 💾","다음 학습 데이터로 채택! 📥","오늘의 베스트 컷 후보 🏆","이 순간 백업 완료 ✅","AI 공식 인증 마크 부여 🔖","친구에게 공유 권장 📤","10년 뒤에도 웃길 예정 ⏳","추억 용량 무제한 지급 ♾️","업데이트 필요 없음, 완벽함 🛠️","오늘 AI교실 지분 획득 🏠","재촬영 불필요 판정 🎯","레전드 등록 대기 중 🌟","인간 지능 우수 판정 🧠","이 에너지 그대로 수업도? 📖"];
+const TITLES = {
+  happy:["😆 웃음 챔피언","💥 행복 과부하"], surprise:["🎬 리액션 장인"], perfect:["🏅 미션 클리어","🧪 튜링 통과"],
+  mid:["🤖 AI 인정 인간"], chaos:["🌀 자유로운 영혼","🎲 예측 불가"], sync:["🤝 완벽 동기화","🧩 팀워크 만렙"],
+  chic:["😎 시크 마스터"], multi:["🎭 표정 부자"], solo:["👑 단독 주인공"], big:["🗂️ 대규모 데이터"],
+};
+
+/* 인원별 프레임 테마 */
+function themeFor(n){
+  if (n >= 5) return { name:"대규모 모드", c1:"#ff7a59", c2:"#ff3d7f" };
+  if (n >= 3) return { name:"팀 모드",     c1:"#14b8a6", c2:"#2563eb" };
+  if (n === 2) return { name:"듀오 모드",  c1:"#3b82f6", c2:"#8b5cf6" };
+  return            { name:"솔로 모드",    c1:"#8b5cf6", c2:"#ec4899" };
+}
+
+/* =========================================================
+   AI 인식 헬퍼
+   ========================================================= */
+const avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+const smileOf = b => ((b.mouthSmileLeft||0)+(b.mouthSmileRight||0))/2;
+const browOf  = b => Math.max(b.browInnerUp||0, ((b.browOuterUpLeft||0)+(b.browOuterUpRight||0))/2);
+const frownOf = b => ((b.mouthFrownLeft||0)+(b.mouthFrownRight||0))/2;
+function faceMajority(d, fn){ const n=d.blend.length; if(!n) return false; return d.blend.filter(fn).length >= Math.ceil(n/2); }
+function allFaces(d, fn){ return d.blend.length >= 2 && d.blend.every(fn); }
+function gestureCount(d, name){ return d.hands.filter(h=>h.gesture===name).length; }
+function headRoll(lm){ const a=lm[33], b=lm[263]; const dx=(b.x-a.x)*vw(), dy=(b.y-a.y)*vh(); return Math.abs(Math.atan2(dy,dx)*180/Math.PI); }
+function angleAt(a,b,c){ const v1={x:a.x-b.x,y:(a.y-b.y)*vh()/vw()}, v2={x:c.x-b.x,y:(c.y-b.y)*vh()/vw()};
+  const cos=(v1.x*v2.x+v1.y*v2.y)/(Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y)||1); return Math.acos(Math.max(-1,Math.min(1,cos)))*180/Math.PI; }
+function anyPose(d, fn){ return d.poses.some(p => p[11] && p[12] && fn(p, Math.abs(p[11].x-p[12].x)||0.01)); }
+function isFingerHeart(lm){ const s=dist(lm[0],lm[9])||0.01; return dist(lm[4],lm[8]) < 0.35*s && dist(lm[0],lm[12]) < 1.3*s; }
+function chinCupCount(d){
+  let best=0;
+  for(const f of d.faces){ const chin=f[152], fw=Math.abs(f[454].x-f[234].x);
+    const c=d.hands.filter(h=>{const w=h.lm[0]; return Math.abs(w.x-chin.x)<fw*1.2 && w.y>chin.y-fw*0.35 && w.y<chin.y+fw*1.1;}).length;
+    best=Math.max(best,c); }
+  return best;
+}
+
+/* =========================================================
+   미션 목록  (need: 어떤 AI 모델이 필요한지)
+   ========================================================= */
+const MISSIONS = {
+  face: [
+    { emoji:"😆", title:"광대 승천",        desc:"최대한 활짝 웃어주세요!",            check:d=>faceMajority(d,b=>smileOf(b)>0.55) },
+    { emoji:"😱", title:"충격과 공포",      desc:"입을 크게 벌리고 놀라 보세요!",       check:d=>faceMajority(d,b=>(b.jawOpen||0)>0.45) },
+    { emoji:"🤨", title:"의심 가득한 표정", desc:"눈썹을 힘껏 치켜올려 보세요!",        check:d=>faceMajority(d,b=>browOf(b)>0.45) },
+    { emoji:"😗", title:"뽀뽀 3초 전",      desc:"입술을 쭉 내밀어 보세요!",            check:d=>faceMajority(d,b=>(b.mouthPucker||0)>0.6) },
+    { emoji:"🐡", title:"복어 모드",        desc:"볼에 바람을 빵빵하게!",               check:d=>faceMajority(d,b=>(b.cheekPuff||0)>0.3) },
+    { emoji:"😉", title:"윙크 발사",        desc:"한쪽 눈만 찡긋!",                     check:d=>faceMajority(d,b=>{const l=b.eyeBlinkLeft||0,r=b.eyeBlinkRight||0; return (l>0.5&&r<0.35)||(r>0.5&&l<0.35);}) },
+    { emoji:"😞", title:"버그 발견한 개발자", desc:"세상 시무룩한 표정을 지어주세요",   check:d=>faceMajority(d,b=>frownOf(b)>0.25) },
+    { emoji:"🤔", title:"AI가 이해 못 함",  desc:"고개를 옆으로 갸웃!",                 check:d=>d.faces.length>0 && d.faces.filter(f=>headRoll(f)>15).length>=Math.ceil(d.faces.length/2) },
+  ],
+  hand: [
+    { emoji:"✌️", title:"브이 브이",        desc:"카메라에 브이!",                       hands:true, check:d=>gestureCount(d,"Victory")>=1 },
+    { emoji:"👍", title:"엄지척",           desc:"최고라는 뜻으로 엄지 척!",             hands:true, check:d=>gestureCount(d,"Thumb_Up")>=1 },
+    { emoji:"🤟", title:"사랑해 사인",      desc:"엄지·검지·새끼 손가락을 펴요!",        hands:true, check:d=>gestureCount(d,"ILoveYou")>=1 },
+    { emoji:"🖐️", title:"하이파이브",       desc:"손바닥을 활짝 펴서 보여주세요!",       hands:true, check:d=>gestureCount(d,"Open_Palm")>=1 },
+    { emoji:"✊", title:"주먹 불끈",        desc:"오늘도 화이팅! 주먹을 쥐어요",         hands:true, check:d=>gestureCount(d,"Closed_Fist")>=1 },
+    { emoji:"☝️", title:"AI 넘버원",        desc:"검지를 하늘 위로!",                    hands:true, check:d=>gestureCount(d,"Pointing_Up")>=1 },
+    { emoji:"✌️✌️", title:"양손 브이",      desc:"두 손 모두 브이!",                     hands:true, check:d=>gestureCount(d,"Victory")>=2 },
+    { emoji:"🌸", title:"꽃받침",           desc:"양손으로 얼굴을 받쳐주세요!",          hands:true, check:d=>chinCupCount(d)>=2 },
+    { emoji:"🫰", title:"손가락 하트",      desc:"엄지와 검지로 작은 하트!",             hands:true, check:d=>d.hands.some(h=>isFingerHeart(h.lm)) },
+  ],
+  body: [
+    { emoji:"🙌", title:"만세!",            desc:"양손을 머리 위로 번쩍!",               pose:true, check:d=>anyPose(d,p=>p[15].y<p[0].y && p[16].y<p[0].y) },
+    { emoji:"💗", title:"머리 위 큰 하트",   desc:"두 팔로 머리 위에 큰 하트!",           pose:true, check:d=>anyPose(d,(p,sw)=>p[15].y<p[0].y && p[16].y<p[0].y && Math.abs(p[15].x-p[16].x)<sw*1.0 && Math.abs(p[13].x-p[14].x)>sw*1.1) },
+    { emoji:"🤖", title:"로봇 포즈",        desc:"팔꿈치를 ㄴ자로 꺾어 삐빅!",           pose:true, check:d=>anyPose(d,p=>{const a=angleAt(p[11],p[13],p[15]), b=angleAt(p[12],p[14],p[16]); return a>55&&a<125&&b>55&&b<125;}) },
+    { emoji:"✈️", title:"T자 비행기",       desc:"양팔을 옆으로 쭉 펴요!",               pose:true, check:d=>anyPose(d,(p,sw)=>Math.abs(p[15].y-p[11].y)<sw*0.5 && Math.abs(p[16].y-p[12].y)<sw*0.5 && Math.abs(p[15].x-p[16].x)>sw*2.4) },
+    { emoji:"🦸", title:"슈퍼맨 출동",      desc:"한 팔만 하늘로 쭉!",                   pose:true, check:d=>anyPose(d,p=>{const l=p[15].y<p[0].y, r=p[16].y<p[0].y; return (l&&!r&&p[16].y>p[12].y)||(r&&!l&&p[15].y>p[11].y);}) },
+  ],
+  group: [
+    { emoji:"✌️", title:"전원 브이",        desc:"모두 다 같이 브이!",                   hands:true, group:true, check:d=>d.faces.length>=2 && gestureCount(d,"Victory")>=d.faces.length },
+    { emoji:"😆", title:"전원 웃음",        desc:"한 명도 빠짐없이 활짝!",               group:true, check:d=>allFaces(d,b=>smileOf(b)>0.5) },
+    { emoji:"😱", title:"전원 놀람",        desc:"다 같이 깜짝 놀란 표정!",              group:true, check:d=>allFaces(d,b=>(b.jawOpen||0)>0.4) },
+  ],
+};
+
+/* =========================================================
+   상태
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const video = $("#video"), overlay = $("#overlay"), octx = overlay.getContext("2d");
+const S = { screen:"start", mode:2, modeTouched:false, headcount:0, n:1, shots:[], missions:[], abort:false, debug:false, idleTimer:null, resultUrl:null };
+const ai = { ready:false, failed:false, face:null, gesture:null, pose:null };
+const latest = { faces:[], blend:[], hands:[], poses:[] };
+let need = { hands:false, pose:false };
+const vw = () => S.demo ? 1280 : (video.videoWidth || 1280), vh = () => S.demo ? 720 : (video.videoHeight || 720);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+$("#eventName").textContent = CONFIG.eventName;
+
+/* =========================================================
+   카메라
+   ========================================================= */
+function cameraError(msg){
+  const err = $("#camErr");
+  err.style.display="grid";
+  err.innerHTML = `<div>${msg}</div><button class="secondary" id="demoBtn">📺 샘플 화면으로 미리보기</button>`;
+  $("#demoBtn").onclick = startDemo;
+}
+async function startCamera(){
+  if(new URLSearchParams(location.search).has("demo")) { startDemo(); return; }
+  if(!navigator.mediaDevices?.getUserMedia || !window.isSecureContext){
+    cameraError("카메라는 <b>https://</b> 주소로 열었을 때만 켜져요 📷<br><small>GitHub Pages에 올린 뒤 Safari로 열어주세요</small>"); return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio:false,
+      video:{ facingMode:"user", width:{ideal:1920}, height:{ideal:1080} } });
+    video.srcObject = stream; await video.play();
+  }catch(e){
+    cameraError(`카메라를 켤 수 없어요 📷<br><small>${e.name} · 설정 → Safari → 카메라 권한을 확인해주세요</small>`);
+  }
+}
+
+/* 샘플 모드: 카메라 없이 가상 화면으로 흐름과 프레임 확인 */
+const demoCanvas = $("#demoCam"), dctx = demoCanvas.getContext("2d");
+function startDemo(){
+  S.demo = true; ai.ready = false;
+  $("#camErr").style.display = "none";
+  $("#viewport").classList.add("demo");
+  $("#aiStatus").className = "chip warn"; $("#aiStatus").textContent = "📺 샘플 모드 (AI 인식 꺼짐)";
+  $("#countChip").innerHTML = "📺 샘플 화면이에요 · 촬영 시작을 눌러보세요";
+  const faces = [["😄","😆","😱","😎"],["🤖","🤩","😗","🥳"],["😜","😉","🤔","😂"]];
+  const draw = t => {
+    const W=1280,H=720, g=dctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,"#1e1b4b"); g.addColorStop(1,"#0f766e");
+    dctx.fillStyle=g; dctx.fillRect(0,0,W,H);
+    dctx.fillStyle="rgba(255,255,255,.08)";
+    for(let y=20;y<H;y+=40) for(let x=20;x<W;x+=40){ dctx.beginPath(); dctx.arc(x,y,2,0,7); dctx.fill(); }
+    const k = Math.floor(t/1500)%4;
+    dctx.fillStyle="#fff"; dctx.textAlign="center"; dctx.textBaseline="middle"; dctx.font="190px sans-serif";
+    faces.forEach((set,i)=>{ const x=W*(i+1)/4, y=H/2+Math.sin(t/400+i*2)*40; dctx.fillText(set[(k+i)%4], x, y); });
+    if(S.demo) requestAnimationFrame(draw);
+  };
+  requestAnimationFrame(draw);
+}
+const source = () => S.demo ? demoCanvas : video;
+
+/* =========================================================
+   AI 모델 (아이패드 안에서만 실행, 사진은 밖으로 나가지 않음)
+   ========================================================= */
+async function loadAI(){
+  const chip = $("#aiStatus");
+  try{
+    let vision;
+    try { vision = await import(`${MP_BASE}/vision_bundle.mjs`); }
+    catch { vision = await import(MP_BASE); }
+    const { FilesetResolver, FaceLandmarker, GestureRecognizer, PoseLandmarker } = vision;
+    const fileset = await FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
+    const make = async (Cls, url, extra) => {
+      for (const delegate of ["GPU","CPU"]) {
+        try { return await Cls.createFromOptions(fileset, { baseOptions:{ modelAssetPath:url, delegate }, runningMode:"VIDEO", ...extra }); }
+        catch(e){ if(delegate==="CPU") throw e; }
+      }
+    };
+    ai.face = await make(FaceLandmarker, MODELS.face, { numFaces:8, outputFaceBlendshapes:true });
+    if(S.demo) return;
+    ai.ready = true;
+    chip.className="chip ok"; chip.textContent="🧠 AI 준비 완료";
+    // 손·몸 모델은 뒤에서 이어서 로드
+    make(GestureRecognizer, MODELS.gesture, { numHands:8 }).then(m=>ai.gesture=m).catch(e=>console.warn("gesture",e));
+    make(PoseLandmarker, MODELS.pose, { numPoses:4 }).then(m=>ai.pose=m).catch(e=>console.warn("pose",e));
+  }catch(e){
+    console.warn("AI load failed", e);
+    ai.failed = true;
+    if(S.demo) return;
+    chip.className="chip warn"; chip.textContent="⚠️ AI 없이 촬영 (인터넷 확인)";
+    $("#countChip").innerHTML = "📸 AI 없이도 촬영할 수 있어요";
+  }
+}
+
+/* =========================================================
+   인식 루프
+   ========================================================= */
+let lastRun = 0; const countHist = [];
+function loop(){
+  requestAnimationFrame(loop);
+  if(!ai.ready || video.readyState < 2) return;
+  const now = performance.now();
+  if(now - lastRun < 70) return; lastRun = now;
+  try{
+    const fr = ai.face.detectForVideo(video, now);
+    latest.faces = fr.faceLandmarks || [];
+    latest.blend = (fr.faceBlendshapes || []).map(b => { const o={}; for(const c of b.categories) o[c.categoryName]=c.score; return o; });
+    if((need.hands || S.debug) && ai.gesture){
+      const gr = ai.gesture.recognizeForVideo(video, now);
+      latest.hands = (gr.landmarks||[]).map((lm,i)=>({ lm, gesture: gr.gestures?.[i]?.[0]?.categoryName || "None" }));
+    } else latest.hands = [];
+    if((need.pose || S.debug) && ai.pose){
+      const pr = ai.pose.detectForVideo(video, now);
+      latest.poses = pr.landmarks || [];
+    } else latest.poses = [];
+  }catch(e){ console.warn(e); }
+
+  if(S.screen==="start"){
+    countHist.push(latest.faces.length); if(countHist.length>12) countHist.shift();
+    const med = [...countHist].sort((a,b)=>a-b)[Math.floor(countHist.length/2)];
+    if(med !== S.headcount){ S.headcount = med; renderHeadcount(); }
+  }
+  drawOverlay();
+  if(S.debug) renderDebug();
+}
+
+function drawOverlay(){
+  const r = overlay.getBoundingClientRect(), dpr = devicePixelRatio||1;
+  if(overlay.width !== Math.round(r.width*dpr)){ overlay.width=Math.round(r.width*dpr); overlay.height=Math.round(r.height*dpr); }
+  const W=overlay.width, H=overlay.height; octx.clearRect(0,0,W,H);
+  if(S.screen!=="start" && !S.debug) return;
+  const sc = Math.max(W/vw(), H/vh()), dw=vw()*sc, dh=vh()*sc, ox=(W-dw)/2, oy=(H-dh)/2;
+  const X = x => W - (ox + x*dw), Y = y => oy + y*dh;     // 거울 모드에 맞춰 좌우 반전
+  latest.faces.forEach((f,i)=>{
+    let x0=1,x1=0,y0=1,y1=0; for(const p of f){ if(p.x<x0)x0=p.x; if(p.x>x1)x1=p.x; if(p.y<y0)y0=p.y; if(p.y>y1)y1=p.y; }
+    const L=X(x1), R=X(x0), T=Y(y0)-12*dpr, B=Y(y1)+6*dpr, k=Math.min(R-L,B-T)*0.22;
+    octx.strokeStyle="#22d3c5"; octx.lineWidth=4*dpr; octx.lineCap="round";
+    octx.beginPath();
+    octx.moveTo(L,T+k);octx.lineTo(L,T);octx.lineTo(L+k,T); octx.moveTo(R-k,T);octx.lineTo(R,T);octx.lineTo(R,T+k);
+    octx.moveTo(L,B-k);octx.lineTo(L,B);octx.lineTo(L+k,B); octx.moveTo(R-k,B);octx.lineTo(R,B);octx.lineTo(R,B-k);
+    octx.stroke();
+    const label=`사람 ${i+1}`; octx.font=`${15*dpr}px -apple-system,sans-serif`;
+    const tw=octx.measureText(label).width+16*dpr;
+    octx.fillStyle="#22d3c5"; octx.fillRect(L, T-26*dpr, tw, 24*dpr);
+    octx.fillStyle="#04201d"; octx.fillText(label, L+8*dpr, T-9*dpr);
+  });
+  if(S.debug){
+    octx.fillStyle="#ffb547";
+    latest.hands.forEach(h=>h.lm.forEach(p=>{octx.beginPath();octx.arc(X(p.x),Y(p.y),3*dpr,0,7);octx.fill();}));
+    octx.fillStyle="#ff5c8a";
+    latest.poses.forEach(p=>[0,11,12,13,14,15,16].forEach(i=>{octx.beginPath();octx.arc(X(p[i].x),Y(p[i].y),5*dpr,0,7);octx.fill();}));
+  }
+}
+
+function renderHeadcount(){
+  const n = S.headcount, chip = $("#countChip");
+  if(ai.failed || S.demo) return;
+  chip.innerHTML = n===0 ? "👀 카메라 앞에 서 주세요!" : `🧠 AI가 <em>${n}명</em>을 인식했어요 · ${themeFor(n).name}`;
+  const rec = n>=3 ? 4 : 2;
+  document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("recommended", n>0 && +b.dataset.mode===rec));
+  if(!S.modeTouched && n>0) setMode(rec);
+}
+
+function renderDebug(){
+  const lines = [`얼굴 ${latest.faces.length} · 손 ${latest.hands.length} · 몸 ${latest.poses.length}`];
+  latest.blend.forEach((b,i)=>lines.push(`사람${i+1} 웃음 ${smileOf(b).toFixed(2)} 입 ${(b.jawOpen||0).toFixed(2)} 볼 ${(b.cheekPuff||0).toFixed(2)} 뽀뽀 ${(b.mouthPucker||0).toFixed(2)}`));
+  if(latest.hands.length) lines.push("손동작: " + latest.hands.map(h=>h.gesture).join(", "));
+  const hit = Object.values(MISSIONS).flat().filter(m=>{ try{return m.check(latest);}catch{return false;} }).map(m=>m.title);
+  lines.push("성공 중인 미션: " + (hit.join(", ") || "-"));
+  $("#debug").textContent = lines.join("\n");
+}
+
+/* =========================================================
+   화면 전환
+   ========================================================= */
+function setMode(m){
+  S.mode = m;
+  document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("sel", +b.dataset.mode===m));
+  $("#viewport").classList.toggle("portrait", m===4);
+}
+function show(screen){
+  S.screen = screen;
+  for(const [id,s] of [["#pStart","start"],["#pShoot","shoot"],["#pResult","result"]]) $(id).classList.toggle("active", s===screen);
+  $("#viewport").style.display = screen==="result" ? "none" : "";
+  $("#resultImg").style.display = screen==="result" ? "block" : "none";
+}
+document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>{ S.modeTouched=true; setMode(+b.dataset.mode); });
+$("#debugBtn").onclick = () => { S.debug=!S.debug; $("#debug").classList.toggle("show",S.debug); $("#debugBtn").textContent = S.debug?"🔍 테스트 끄기":"🔍 인식 테스트"; };
+$("#startBtn").onclick = () => runSession();
+$("#cancelBtn").onclick = () => { S.abort = true; };
+$("#homeBtn").onclick = () => goHome();
+$("#printBtn").onclick = () => doPrint();
+$("#saveBtn").onclick = () => doSave();
+
+function goHome(){
+  clearInterval(S.idleTimer);
+  S.modeTouched=false; S.abort=false; need={hands:false,pose:false};
+  if(S.debug) $("#debugBtn").click();
+  show("start"); renderHeadcount();
+}
+
+/* =========================================================
+   촬영 세션
+   ========================================================= */
+function pickMissions(n){
+  const f1 = pick(MISSIONS.face);
+  const last = n>=2 ? pick(MISSIONS.group) : pick(MISSIONS.face.filter(m=>m!==f1));
+  return shuffle([f1, pick(MISSIONS.hand), pick(MISSIONS.body), last]);
+}
+
+function buildThumbs(){
+  const t=$("#thumbs"); t.innerHTML="";
+  for(let i=0;i<4;i++){ const d=document.createElement("div"); d.className="thumb"+(S.mode===4?" portrait":""); d.textContent=i+1; t.appendChild(d); }
+}
+
+function waitFrames(fn){ return new Promise(res=>{ const tick=()=>{ const v=fn(); if(v!==undefined) res(v); else requestAnimationFrame(tick); }; tick(); }); }
+
+async function runSession(){
+  if(!S.demo && video.readyState < 2) return;
+  if(S.debug) $("#debugBtn").click();
+  S.abort=false; S.n = Math.max(1, S.headcount||1); S.shots=[];
+  S.missions = pickMissions(ai.ready ? S.n : 1);
+  show("shoot"); buildThumbs();
+  const nav = navigator; try{ S.wake = await nav.wakeLock?.request("screen"); }catch{}
+
+  for(let i=0;i<4;i++){
+    if(S.abort) break;
+    const th = $("#thumbs").children[i]; th.classList.add("now");
+    const m = S.missions[i];
+    need = { hands:!!m.hands, pose:!!m.pose };
+    $("#mStep").textContent = `MISSION ${i+1} / 4`;
+    $("#mTitle").textContent = `${m.emoji} ${m.title}`;
+    $("#mDesc").textContent = m.desc;
+    $("#mission").classList.add("show");
+    await sleep(700);
+
+    // 미션 인식 대기
+    const limit = (ai.ready ? CONFIG.missionTimeout : Math.min(3,CONFIG.missionTimeout)) * 1000;
+    const t0 = performance.now(); let holdStart = null;
+    const timer=$("#timer"), fill=$("#timerFill"); timer.classList.add("show");
+    const success = await waitFrames(()=>{
+      if(S.abort) return false;
+      const el = performance.now()-t0;
+      fill.style.transform = `scaleX(${Math.max(0,1-el/limit)})`;
+      let ok=false; if(ai.ready){ try{ ok = m.check(latest); }catch{ ok=false; } }
+      if(ok){ holdStart ??= performance.now(); if(performance.now()-holdStart >= CONFIG.holdMs) return true; }
+      else holdStart = null;
+      if(el >= limit) return false;
+    });
+    timer.classList.remove("show");
+    if(S.abort) break;
+
+    await flashBanner(success ? "인식 성공! ✨" : (ai.ready ? "시간 초과! 그냥 찍어요 📸" : "포즈 잡고~ 📸"), 900);
+    for(let c=CONFIG.countdown;c>=1;c--){ if(S.abort) break; popCount(c); await sleep(1000); }
+    if(S.abort) break;
+
+    const stats = snapshot();
+    const img = captureFrame(S.mode===4 ? 3/4 : 4/3);
+    $("#flash").classList.remove("go"); void $("#flash").offsetWidth; $("#flash").classList.add("go");
+    S.shots.push({ img, success, mission:m, aiOn:ai.ready, ...stats });
+    th.classList.remove("now"); th.classList.add("done"); th.textContent="";
+    th.style.backgroundImage = `url(${img.toDataURL("image/jpeg",0.6)})`;
+    $("#mission").classList.remove("show");
+    await sleep(800);
+  }
+  need = { hands:false, pose:false };
+  $("#mission").classList.remove("show");
+  try{ S.wake?.release(); }catch{}
+  if(S.abort || S.shots.length<4){ goHome(); return; }
+  await finish();
+}
+
+function snapshot(){
+  if(!ai.ready || !latest.blend.length) return { smile:null, jaw:null, faces:latest.faces.length };
+  return { smile: avg(latest.blend.map(smileOf)), jaw: avg(latest.blend.map(b=>b.jawOpen||0)), faces: latest.faces.length };
+}
+
+async function flashBanner(text, ms){
+  const b=$("#banner"); b.textContent=text; b.classList.add("show"); await sleep(ms); b.classList.remove("show"); await sleep(150);
+}
+function popCount(n){ const c=$("#count"); c.textContent=n; c.classList.remove("pop"); void c.offsetWidth; c.classList.add("pop"); }
+
+function captureFrame(aspect){
+  const W=vw(), H=vh(); let sw,sh;
+  if(W/H > aspect){ sh=H; sw=H*aspect; } else { sw=W; sh=W/aspect; }
+  const sx=(W-sw)/2, sy=(H-sh)/2;
+  const outW = aspect>1 ? 1200 : 900, outH = Math.round(outW/aspect);
+  const c=document.createElement("canvas"); c.width=outW; c.height=outH;
+  const x=c.getContext("2d");
+  if(!S.demo){ x.translate(outW,0); x.scale(-1,1); }                     // 거울 모드 그대로 저장
+  x.drawImage(source(), sx,sy,sw,sh, 0,0,outW,outH);
+  return c;
+}
+
+/* =========================================================
+   AI 리포트
+   ========================================================= */
+function buildReport(shots, n){
+  const success = shots.filter(s=>s.success).length;
+  const smiles = shots.map(s=>s.smile).filter(v=>v!=null);
+  const aiOn = ai.ready && smiles.length>0;
+  const cats = [];
+  let smilePct = null;
+  if(aiOn){
+    smilePct = Math.round(Math.min(1, avg(smiles)*1.25)*100);
+    const surprise = shots.filter(s=>(s.jaw||0)>0.35).length;
+    if(smilePct>=70) cats.push("happy");
+    if(surprise>=2) cats.push("surprise");
+    cats.push(success===4 ? "perfect" : success>=2 ? "mid" : "chaos");
+    if(shots.some(s=>s.mission.group && s.success)) cats.push("sync");
+    if(smilePct<30) cats.push("chic");
+    if(Math.max(...smiles)-Math.min(...smiles) > 0.5) cats.push("multi");
+    if(n===1) cats.push("solo");
+    if(n>=5) cats.push("big");
+  } else cats.push("happy");
+  const cat = pick(cats);
+  const date = new Date(), ds = `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,"0")}.${String(date.getDate()).padStart(2,"0")}`;
+  return {
+    comment: pick(PHRASES[cat]), tail: pick(TAILS), title: pick(TITLES[cat]),
+    stats: aiOn ? `😆 웃음지수 ${smilePct}% · 🎯 미션 ${success}/4 · 👥 ${n}명 인식` : `📸 AI 포즈 미션 4컷 완료`,
+    short: aiOn ? `웃음 ${smilePct}% · 미션 ${success}/4` : `미션 4컷 완료`,
+    date: ds,
+  };
+}
+
+/* =========================================================
+   프레임 합성 (1200 × 1800px = 4×6인치 @300dpi)
+   ========================================================= */
+const FONT_FUN = `"Jua","Apple SD Gothic Neo","Malgun Gothic",sans-serif`;
+const FONT_UI  = `-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif`;
+
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function fitText(ctx, text, cx, y, maxW, size, family, color, weight=""){
+  let s=size; do { ctx.font=`${weight} ${s}px ${family}`; if(ctx.measureText(text).width<=maxW) break; s-=1; } while(s>10);
+  ctx.fillStyle=color; ctx.textAlign="center"; ctx.textBaseline="alphabetic"; ctx.fillText(text, cx, y);
+}
+function drawUnitBg(ctx,x,y,w,h,theme){
+  const g=ctx.createLinearGradient(x,y,x+w,y+h); g.addColorStop(0,theme.c1); g.addColorStop(1,theme.c2);
+  ctx.fillStyle=g; ctx.fillRect(x,y,w,h);
+  ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+  ctx.fillStyle="rgba(255,255,255,.13)";                                     // 회로 느낌 점 패턴
+  for(let yy=y+15; yy<y+h; yy+=30) for(let xx=x+15; xx<x+w; xx+=30){ ctx.beginPath(); ctx.arc(xx,yy,2,0,7); ctx.fill(); }
+  ctx.strokeStyle="rgba(255,255,255,.10)"; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(x+w-30,y+60,90,0,7); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x+20,y+h-40,70,0,7); ctx.stroke();
+  ctx.restore();
+}
+function drawPhoto(ctx, shot, x,y,w,h, small){
+  ctx.save(); rr(ctx,x-5,y-5,w+10,h+10,16); ctx.fillStyle="#fff"; ctx.fill();
+  rr(ctx,x,y,w,h,12); ctx.clip(); ctx.drawImage(shot.img,x,y,w,h); ctx.restore();
+  const mark = shot.aiOn ? (shot.success?" ✅":" 🌀") : "";
+  const tag = small ? `${shot.mission.emoji.slice(0,2)}${mark}` : `${shot.mission.emoji.slice(0,2)} ${shot.mission.title}${mark}`;
+  ctx.font = `${small?15:17}px ${FONT_FUN}`;
+  const tw = ctx.measureText(tag).width + 18, th = small?26:30;
+  ctx.save(); rr(ctx, x+8, y+h-th-8, tw, th, th/2); ctx.fillStyle="rgba(14,15,31,.72)"; ctx.fill(); ctx.restore();
+  ctx.fillStyle="#fff"; ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillText(tag, x+17, y+h-th/2-8+1);
+}
+function drawStrip(ctx, x0, shots, rep, theme){                                // 600 × 1800
+  drawUnitBg(ctx,x0,0,600,1800,theme);
+  fitText(ctx, `🤖 ${CONFIG.eventName}`, x0+300, 94, 468, 36, FONT_FUN, "#fff");
+  const pw=468, ph=351, px=x0+66;
+  shots.forEach((s,i)=>drawPhoto(ctx, s, px, 116+i*(ph+16), pw, ph, false));
+  fitText(ctx, rep.comment, x0+300, 1608, 468, 28, FONT_FUN, "#fff");
+  fitText(ctx, rep.tail,    x0+300, 1646, 468, 23, FONT_FUN, "rgba(255,255,255,.92)");
+  fitText(ctx, rep.stats,   x0+300, 1682, 468, 18, FONT_UI,  "rgba(255,255,255,.9)", "600");
+  fitText(ctx, `${theme.name} · ${rep.date}`, x0+300, 1712, 468, 15, FONT_UI, "rgba(255,255,255,.7)");
+}
+function drawPiece(ctx, x0, y0, shots, rep, theme){                            // 600 × 900
+  drawUnitBg(ctx,x0,y0,600,900,theme);
+  fitText(ctx, `🤖 ${CONFIG.eventName}`, x0+300, y0+76, 460, 22, FONT_FUN, "#fff");
+  const pw=244, ph=325, gx=x0+48, gy=y0+94, gap=16;
+  shots.forEach((s,i)=>drawPhoto(ctx, s, gx+(i%2)*(pw+gap), gy+Math.floor(i/2)*(ph+gap), pw, ph, true));
+  fitText(ctx, rep.title, x0+300, y0+800, 460, 28, FONT_FUN, "#fff");
+  fitText(ctx, `${rep.short} · ${rep.date}`, x0+300, y0+830, 460, 15, FONT_UI, "rgba(255,255,255,.85)", "600");
+}
+function drawCutGuides(ctx, mode){
+  ctx.save(); ctx.strokeStyle="rgba(255,255,255,.55)"; ctx.lineWidth=2; ctx.setLineDash([10,10]);
+  ctx.beginPath(); ctx.moveTo(600,0); ctx.lineTo(600,1800); if(mode===4){ ctx.moveTo(0,900); ctx.lineTo(1200,900); } ctx.stroke();
+  ctx.restore();
+}
+async function compose(shots, mode, rep, theme){
+  try{ await Promise.race([document.fonts.load(`36px "Jua"`), sleep(1500)]); }catch{}
+  const c=document.createElement("canvas"); c.width=1200; c.height=1800;
+  const ctx=c.getContext("2d");
+  if(mode===2){ drawStrip(ctx,0,shots,rep,theme); drawStrip(ctx,600,shots,rep,theme); }
+  else { for(let r=0;r<2;r++) for(let k=0;k<2;k++) drawPiece(ctx,k*600,r*900,shots,rep,theme); }
+  drawCutGuides(ctx, mode);
+  return c;
+}
+
+async function finish(){
+  const n = ai.ready ? S.n : 1;
+  const rep = buildReport(S.shots, n);
+  const theme = themeFor(n);
+  const canvas = await compose(S.shots, S.mode, rep, theme);
+  S.resultUrl = canvas.toDataURL("image/jpeg", 0.95);
+  S.resultCanvas = canvas;
+  $("#resultImg").src = S.resultUrl;
+  $("#printImg").src = S.resultUrl;
+  $("#rC1").textContent = S.mode===2 ? `${rep.comment}  ${rep.tail}` : `${rep.title}`;
+  $("#rC2").textContent = rep.stats;
+  show("result");
+  let left = CONFIG.resultIdle;
+  const tick = () => { $("#idleMsg").textContent = `${left}초 뒤 처음 화면으로 돌아가요`; if(left--<=0) goHome(); };
+  tick(); clearInterval(S.idleTimer); S.idleTimer = setInterval(tick, 1000);
+}
+
+/* =========================================================
+   인쇄 / 저장
+   ========================================================= */
+function doPrint(){
+  clearInterval(S.idleTimer); $("#idleMsg").textContent = "인쇄 창에서 용지를 '엽서(100×148mm)'로 선택해주세요";
+  const img=$("#printImg");
+  if(img.complete) window.print(); else img.onload=()=>window.print();
+}
+async function doSave(){
+  clearInterval(S.idleTimer);
+  const blob = await new Promise(r=>S.resultCanvas.toBlob(r,"image/jpeg",0.95));
+  const file = new File([blob], `ai-photobooth-${Date.now()}.jpg`, { type:"image/jpeg" });
+  if(navigator.canShare?.({ files:[file] })){
+    try{ await navigator.share({ files:[file] }); return; }catch(e){ if(e.name==="AbortError") return; }
+  }
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=file.name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+
+/* 시작 */
+setMode(2);
+startCamera();
+loadAI();
+requestAnimationFrame(loop);
+window.__booth = { S, ai, latest, compose, buildReport };   // 테스트용
+</script>
+</body>
+</html>
