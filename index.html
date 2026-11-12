@@ -641,25 +641,34 @@ async function runSession(){
 
       // 미션 인식 대기
       const limit = (ai.ready ? CONFIG.missionTimeout : Math.min(3,CONFIG.missionTimeout)) * 1000;
-      const t0 = performance.now(); let holdStart = null;
+      const t0 = performance.now(); let holdStart = null, lastN = null;
       const timer=$("#timer"), fill=$("#timerFill"); timer.classList.add("show");
       success = await waitFrames(()=>{
         if(S.abort) return false;
         const el = performance.now()-t0;
         fill.style.transform = `scaleX(${Math.max(0,1-el/limit)})`;
+        // 남은 3초: 안내 문구 + 3·2·1 (시간이 끝나면 추가 대기 없이 바로 촬영)
+        const left = Math.ceil((limit-el)/1000);
+        if(left<=3 && left>=1 && left!==lastN){
+          if(lastN===null) $("#mDesc").textContent = "⏰ 곧 찍혀요! 포즈 그대로~";
+          lastN = left; popCount(left); TL.count = left;
+        }
         let ok=false; if(ai.ready){ try{ ok = m.check(latest); }catch{ ok=false; } }
         if(ok){ holdStart ??= performance.now(); if(performance.now()-holdStart >= CONFIG.holdMs) return true; }
         else holdStart = null;
         if(el >= limit) return false;
       });
       timer.classList.remove("show");
+      TL.count = null; $("#count").classList.remove("pop");
       if(S.abort) break;
-      await flashBanner(success ? "인식 성공! ✨" : (ai.ready ? "시간 초과! 그냥 찍어요 📸" : "포즈 잡고~ 📸"), 900);
+      if(success) await flashBanner("인식 성공! ✨", 900);                           // 성공했을 때만 배너 + 3·2·1
     }
 
-    const cd = classic ? CONFIG.classicCountdown : CONFIG.countdown;
-    for(let c=cd;c>=1;c--){ if(S.abort) break; popCount(c); TL.count=c; await sleep(1000); }
-    TL.count=null;
+    if(classic || success){
+      const cd = classic ? CONFIG.classicCountdown : CONFIG.countdown;
+      for(let c=cd;c>=1;c--){ if(S.abort) break; popCount(c); TL.count=c; await sleep(1000); }
+      TL.count=null;
+    }
     if(S.abort) break;
 
     const stats = classic ? {} : snapshot();
