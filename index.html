@@ -36,7 +36,7 @@
   .stage{container-type:size;display:grid;place-items:center;min-height:0}
   .viewport{position:relative;border-radius:22px;overflow:hidden;background:#000;
     box-shadow:0 0 0 3px var(--line),0 20px 60px rgba(0,0,0,.5);
-    width:min(100cqw, calc(100cqh * 4 / 3));aspect-ratio:4/3;transition:width .3s}
+    width:min(100cqw, calc(100cqh * 3 / 2));aspect-ratio:3/2;transition:width .3s}
   .viewport.portrait{width:min(100cqw, calc(100cqh * 3 / 4));aspect-ratio:3/4}
   .viewport video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
   .viewport canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -96,7 +96,7 @@
   .countchip em{font-style:normal;color:var(--accent2)}
 
   .thumbs{display:flex;gap:10px}
-  .thumb{width:86px;aspect-ratio:4/3;border-radius:10px;border:2px dashed var(--line);display:grid;place-items:center;
+  .thumb{width:90px;aspect-ratio:3/2;border-radius:10px;border:2px dashed var(--line);display:grid;place-items:center;
     color:var(--muted);font-size:13px;overflow:hidden;background:#0b0c19 center/cover no-repeat}
   .thumb.portrait{width:60px;aspect-ratio:3/4}
   .thumb.done{border-style:solid;border-color:var(--accent2)}
@@ -154,10 +154,10 @@
   /* 인쇄: 결과 이미지 한 장만 4x6 꽉 차게 */
   #printArea{display:none}
   @media print{
-    @page{size:4in 6in;margin:0}
+    @page{size:100mm 148mm;margin:0}
     html,body{height:auto;overflow:visible;background:#fff}
     body > *{display:none !important}
-    #printArea{display:block !important;width:4in;height:6in;margin:0;padding:0}
+    #printArea{display:block !important;width:100mm;height:148mm;margin:0;padding:0}
     #printArea img{display:block;width:100%;height:100%;object-fit:cover}
   }
 </style>
@@ -261,6 +261,7 @@ const CONFIG = {
 };
 if (new URLSearchParams(location.search).has("fast")) { CONFIG.missionTimeout = 1; CONFIG.countdown = 1; CONFIG.classicCountdown = 1; }
 
+const PHOTO_RATIO = 3/2;                                         // 사진·촬영 화면 비율 (가로:세로)
 const MP_VERSION = "0.10.14";
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
 const MODELS = {
@@ -662,7 +663,7 @@ async function runSession(){
     if(S.abort) break;
 
     const stats = classic ? {} : snapshot();
-    const img = captureFrame(4/3);                                               // 인원·모드와 관계없이 4:3 고정
+    const img = captureFrame(PHOTO_RATIO);                                       // 인원·모드와 관계없이 3:2 고정
     $("#flash").classList.remove("go"); void $("#flash").offsetWidth; $("#flash").classList.add("go");
     TL.grab(true);
     S.shots.push({ img, success, mission:m, aiOn: !classic && ai.ready, ...stats });
@@ -733,7 +734,7 @@ function buildReport(shots, n){
 }
 
 /* =========================================================
-   프레임 합성 (1200 × 1800px = 4×6인치 @300dpi)
+   프레임 합성 (1200 × 1776px = 엽서 100×148mm, 가로 1200px 기준)
    ========================================================= */
 const FONT_FUN = `"Jua","Apple SD Gothic Neo","Malgun Gothic",sans-serif`;
 const FONT_UI  = `-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif`;
@@ -844,23 +845,23 @@ function titleWithRules(ctx, text, cx, y, size, maxW, theme, x0, x1){
   ctx.fillStyle=theme.accent; for(const px of [x0,x1]){ ctx.beginPath(); ctx.arc(px,my,4,0,7); ctx.fill(); }
   ctx.restore();
 }
-function drawStrip(ctx, x0, shots, rep, theme){                                // 600 × 1800
-  drawUnitBg(ctx,x0,0,600,1800,theme,76);
-  fitText(ctx, `AI POSE MISSION  ·  ${rep.date}`, x0+300, 86, 440, 14, FONT_UI, hexA(theme.accent,.95), "700");
-  titleWithRules(ctx, CONFIG.title, x0+300, 130, 42, 340, theme, x0+80, x0+520);
-  const pw=448, ph=336, px=x0+76, top=152, gap=16;
+const SHEET_H = 1776;                                                     // 1200 × 148/100
+function drawStrip(ctx, x0, shots, rep, theme){                                // 600 × 1776
+  drawUnitBg(ctx,x0,0,600,SHEET_H,theme,40);
+  titleWithRules(ctx, CONFIG.title, x0+300, 60, 38, 320, theme, x0+44, x0+556);
+  const pw=520, ph=Math.round(pw/PHOTO_RATIO), px=x0+40, top=80, gap=12;      // 520 × 347
   shots.forEach((s,i)=>drawPhoto(ctx, s, i, px, top+i*(ph+gap), pw, ph, false, theme));
-  hudCorners(ctx, px, top, pw, 4*ph+3*gap, 11, 28, theme.accent);
+  hudCorners(ctx, px, top, pw, 4*ph+3*gap, 9, 26, theme.accent);
   // AI 리포트 카드
-  const cy=top+4*ph+3*gap+16;                                                    // ≈ 1560
-  ctx.save(); rr(ctx,px,cy,pw,98,16); ctx.fillStyle="rgba(255,255,255,.06)"; ctx.fill();
+  const cy=top+4*ph+3*gap+18;                                                    // ≈ 1522
+  ctx.save(); rr(ctx,px,cy,pw,100,16); ctx.fillStyle="rgba(255,255,255,.06)"; ctx.fill();
   ctx.strokeStyle=hexA(theme.accent,.45); ctx.lineWidth=1.5; ctx.stroke(); ctx.restore();
   pill(ctx, "🤖 AI REPORT", px+40, cy-12, 12, theme);
-  fitText(ctx, rep.comment, x0+300, cy+39, 420, 23, FONT_FUN, "#fff");
-  fitText(ctx, rep.tail,    x0+300, cy+64, 420, 18, FONT_FUN, "rgba(255,255,255,.88)");
-  fitText(ctx, rep.stats,   x0+300, cy+85, 420, 13, FONT_UI,  hexA(theme.accent,.95), "700");
-  // 학교 로고 + 글자 (리포트보다 조금 크게)
-  drawLogoRow(ctx, x0+300, 1704, 32, 19, 27, theme);
+  fitText(ctx, rep.comment, x0+300, cy+40, 490, 24, FONT_FUN, "#fff");
+  fitText(ctx, rep.tail,    x0+300, cy+66, 490, 18, FONT_FUN, "rgba(255,255,255,.88)");
+  fitText(ctx, `${rep.stats}  ·  ${rep.date}`, x0+300, cy+88, 490, 13, FONT_UI, hexA(theme.accent,.95), "700");
+  // 학교 로고 + 글자
+  drawLogoRow(ctx, x0+300, cy+168, 32, 19, 27, theme);
 }
 function drawPiece(ctx, x0, y0, shots, rep, theme){                            // 600 × 900
   drawUnitBg(ctx,x0,y0,600,900,theme,49);
@@ -878,8 +879,8 @@ function drawPiece(ctx, x0, y0, shots, rep, theme){                            /
 }
 function drawCutGuides(ctx, mode, color="rgba(255,255,255,.35)"){
   ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.setLineDash([10,10]);
-  ctx.beginPath(); ctx.moveTo(600,0); ctx.lineTo(600,1800);
-  if(mode===4){ ctx.moveTo(300,0); ctx.lineTo(300,1800); ctx.moveTo(0,900); ctx.lineTo(600,900); }
+  ctx.beginPath(); ctx.moveTo(600,0); ctx.lineTo(600,SHEET_H);
+  if(mode===4){ ctx.moveTo(300,0); ctx.lineTo(300,SHEET_H); ctx.moveTo(0,SHEET_H/2); ctx.lineTo(600,SHEET_H/2); }
   ctx.stroke();
   ctx.restore();
 }
@@ -887,14 +888,14 @@ async function loadFonts(){ try{ await Promise.race([Promise.all([document.fonts
 // 인쇄용 4×6 한 장 (qrText가 있으면 QR 포함)
 async function compose(shots, mode, rep, theme, qrText){
   await loadFonts();
-  const c=document.createElement("canvas"); c.width=1200; c.height=1800;
+  const c=document.createElement("canvas"); c.width=1200; c.height=SHEET_H;
   const ctx=c.getContext("2d");
   const classic = S.style==="classic";
   const strip = classic ? drawClassicStrip : drawStrip, piece = classic ? drawClassicPiece : drawPiece;
   if(mode===2){ strip(ctx,0,shots,rep,theme); strip(ctx,600,shots,rep,theme); }
   else {
     // 4장 모드: 왼쪽 = 미니 네컷 4개(원본의 절반 크기, 2×2) · 오른쪽 = 원본 네컷 1개
-    for(let r=0;r<2;r++) for(let k=0;k<2;k++){ ctx.save(); ctx.translate(k*300, r*900); ctx.scale(.5,.5); strip(ctx,0,shots,rep,theme); ctx.restore(); }
+    for(let r=0;r<2;r++) for(let k=0;k<2;k++){ ctx.save(); ctx.translate(k*300, r*SHEET_H/2); ctx.scale(.5,.5); strip(ctx,0,shots,rep,theme); ctx.restore(); }
     strip(ctx,600,shots,rep,theme);
   }
   drawCutGuides(ctx, mode, classic && !theme.dark ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.35)");
@@ -903,7 +904,7 @@ async function compose(shots, mode, rep, theme, qrText){
 // 다운로드용: 잘린 한 조각을 2배 해상도로
 async function composeDigital(shots, mode, rep, theme){
   await loadFonts();
-  const c=document.createElement("canvas"); c.width=1200; c.height=3600;
+  const c=document.createElement("canvas"); c.width=1200; c.height=SHEET_H*2;
   const ctx=c.getContext("2d"); ctx.scale(2,2);
   const classic = S.style==="classic";
   (classic?drawClassicStrip:drawStrip)(ctx,0,shots,rep,theme);                    // 두 모드 모두 원본 네컷 한 줄
@@ -991,7 +992,7 @@ const TL = {
   frames:[], n:0, timer:null, on:false, label:"", step:0, count:null, banner:"", c:null, x:null,
   start(){
     this.frames=[]; this.n=0; this.on=true; this.label=""; this.count=null; this.banner="";
-    const [w,h] = [640,480];
+    const [w,h] = [660,440];
     this.c=document.createElement("canvas"); this.c.width=w; this.c.height=h; this.x=this.c.getContext("2d");
     clearInterval(this.timer); this.timer=setInterval(()=>this.grab(), CONFIG.timelapseMs);
   },
@@ -1204,7 +1205,7 @@ function classicBg(ctx,x,y,w,h,t,gutter){
     }
   }
   // 설날 보름달 (장식 위에 그림)
-  if(t.seollal){ if(h>1000) fullMoon(ctx, x+w-gutter*0.55, y+70, 40); else fullMoon(ctx, x+w-62, y+42, 21); }
+  if(t.seollal) fullMoon(ctx, x+w-70, y+h-104, 30);                      // 보름달: 오른쪽 아래 문구 옆
   ctx.restore();
 }
 // 발자국
@@ -1299,19 +1300,19 @@ function classicTitle(ctx, t, cx, y, size, maxW){
   if(t.minimal) fitText(ctx, t.title.split("").join(" "), cx, y, maxW, Math.round(size*.72), FONT_UI, t.ink, "800");
   else fitText(ctx, t.titleWrap ? `${t.titleWrap} ${t.title} ${t.titleWrap}` : t.title, cx, y, maxW, size, FONT_SCRIPT, t.ink, "700");
 }
-function drawClassicStrip(ctx, x0, shots, rep, t){                              // 600 × 1800
-  classicBg(ctx,x0,0,600,1800,t,76);
-  classicTitle(ctx, t, x0+300, t.ears ? 98 : 110, 56, t.ears ? 300 : 440);
-  const pw=448, ph=336, px=x0+76, top=146, gap=16;
+function drawClassicStrip(ctx, x0, shots, rep, t){                              // 600 × 1776
+  classicBg(ctx,x0,0,600,SHEET_H,t,40);
+  classicTitle(ctx, t, x0+300, t.ears ? 50 : 60, t.ears ? 44 : 50, t.ears ? 300 : 500);
+  const pw=520, ph=Math.round(pw/PHOTO_RATIO), px=x0+40, top=80, gap=12;
   if(t.ears==="cat") drawEars(ctx, "cat", px, top-5, pw, 34);
   shots.forEach((s,i)=>classicPhoto(ctx, s, px, top+i*(ph+gap), pw, ph, t));
   if(t.ears==="dog") drawEars(ctx, "dog", px-5, top-5, pw+10, 36);
-  const by = top+4*ph+3*gap;                                                     // ≈ 1538
+  const by = top+4*ph+3*gap;                                                     // ≈ 1504
   const lines = rep.phrase.split("\n"), two = lines.length>1;
-  fitText(ctx, lines[0], x0+300, by+(two?60:70), 440, 32, FONT_FUN, t.ink);
-  if(two) fitText(ctx, lines[1], x0+300, by+100, 440, 28, FONT_UI, t.ink, "600");
-  fitText(ctx, rep.date, x0+300, by+(two?138:112), 440, 19, FONT_UI, t.sub, "700");
-  fitText(ctx, "#오늘의네컷", x0+300, by+(two?170:148), 440, 15, FONT_UI, hexA(t.sub.length===7?t.sub:"#888888", .85), "600");
+  fitText(ctx, lines[0], x0+300, by+(two?66:78), 500, 36, FONT_FUN, t.ink);
+  if(two) fitText(ctx, lines[1], x0+300, by+108, 500, 30, FONT_UI, t.ink, "600");
+  fitText(ctx, rep.date, x0+300, by+(two?150:126), 500, 21, FONT_UI, t.sub, "700");
+  fitText(ctx, "#오늘의네컷", x0+300, by+(two?184:162), 500, 16, FONT_UI, hexA(t.sub.length===7?t.sub:"#888888", .85), "600");
 }
 function drawClassicPiece(ctx, x0, y0, shots, rep, t){                          // 600 × 900
   classicBg(ctx,x0,y0,600,900,t,49);
