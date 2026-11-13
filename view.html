@@ -34,15 +34,31 @@
 </head>
 <body>
 <main>
-  <div class="eyebrow">AI POSE MISSION</div>
-  <h1>🤖 오늘의 AI포토</h1>
+  <div class="eyebrow" id="eyebrow">AI POSE MISSION</div>
+  <h1 id="title">🤖 오늘의 AI포토</h1>
   <div id="content"></div>
-  <footer>AI프로그래밍랩 · 개포중학교</footer>
+  <footer id="foot">AI프로그래밍랩 · 개포중학교</footer>
 </main>
 <script>
   const q = new URLSearchParams(location.search);
   const ok = id => /^[\w-]{10,}$/.test(id || "");
-  const p = q.get("p"), v = q.get("v");
+  const p = q.get("p"), v = q.get("v"), classic = q.get("t") === "c";
+  if (q.get("t") === "e") {                         // 신나는 AI교실 개관식 프레임
+    document.title = "신나는 AI교실";
+    document.getElementById("title").textContent = "🎉 신나는 AI교실";
+    document.getElementById("foot").textContent = "서울특별시교육청 · 개포중학교";
+  }
+  if (classic) {                                   // 일반 네컷 모드: AI·학교 표시 없이
+    document.title = "오늘의 네컷";
+    document.getElementById("eyebrow").textContent = "OUR MOMENT";
+    document.getElementById("title").textContent = "📸 오늘의 네컷";
+    document.getElementById("foot").style.display = "none";
+    document.documentElement.style.setProperty("--accent", "#ff8fb1");
+    document.documentElement.style.setProperty("--card", "#1f1f23");
+    document.documentElement.style.setProperty("--line", "#34343a");
+    document.head.insertAdjacentHTML("beforeend", "<style>.btn{background:linear-gradient(135deg,#ff7aa8,#ffb36b)}</style>");
+    document.body.style.background = "radial-gradient(120% 60% at 90% 0%,rgba(255,143,177,.18),transparent 60%),radial-gradient(100% 50% at 0% 100%,rgba(255,207,112,.14),transparent 60%),#141416";
+  }
   const box = document.getElementById("content");
   const dl = id => `https://drive.google.com/uc?export=download&id=${id}`;
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -53,7 +69,7 @@
     box.insertAdjacentHTML("beforeend", `
       <section class="card">
         <h2>📸 오늘의 사진</h2>
-        <div class="media"><img id="photo" alt="오늘의 AI포토 사진"></div>
+        <div class="media"><img id="photo" alt="오늘의 사진"></div>
         <p class="tip">${isIOS ? "사진을 <b>길게 눌러 ‘사진 앱에 저장’</b>을 누르면 앨범에 저장돼요." : "사진을 <b>길게 눌러 ‘이미지 다운로드’</b>를 누르거나 아래 버튼을 눌러주세요."}</p>
         <a class="btn" href="${dl(p)}">💾 사진 저장하기</a>
       </section>`);
