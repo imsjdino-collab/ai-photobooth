@@ -855,22 +855,24 @@ function titleWithRules(ctx, text, cx, y, size, maxW, theme, x0, x1){
   ctx.restore();
 }
 const SHEET_H = 1776;                                                     // 1200 × 148/100
-function drawStrip(ctx, x0, shots, rep, theme){                                // 600 × 1776
-  drawUnitBg(ctx,x0,0,600,SHEET_H,theme,40);
-  titleWithRules(ctx, CONFIG.title, x0+300, 60, 38, 320, theme, x0+44, x0+556);
-  const pw=520, ph=Math.round(pw/PHOTO_RATIO), px=x0+40, top=80, gap=12;      // 520 × 347
+// o.padL: 사진 왼쪽 여백 (왼쪽+오른쪽 여백 합은 항상 60) · o.bg=false면 배경 생략(미니 네컷용)
+function drawStrip(ctx, x0, shots, rep, theme, o={}){                          // 600 × 1776
+  const padL = o.padL ?? 30, pw = 540, px = x0+padL, cx = px+pw/2;
+  const ph = Math.round(pw/PHOTO_RATIO), top = 80, gap = 10;                   // 540 × 360
+  if(o.bg!==false) drawUnitBg(ctx,x0,0,600,SHEET_H,theme,30);
+  titleWithRules(ctx, CONFIG.title, cx, 62, 38, 320, theme, px+6, px+pw-6);
   shots.forEach((s,i)=>drawPhoto(ctx, s, i, px, top+i*(ph+gap), pw, ph, false, theme));
-  hudCorners(ctx, px, top, pw, 4*ph+3*gap, 9, 26, theme.accent);
+  hudCorners(ctx, px, top, pw, 4*ph+3*gap, 7, 24, theme.accent);
   // AI 리포트 카드
-  const cy=top+4*ph+3*gap+18;                                                    // ≈ 1522
-  ctx.save(); rr(ctx,px,cy,pw,100,16); ctx.fillStyle="rgba(255,255,255,.06)"; ctx.fill();
+  const cy=top+4*ph+3*gap+16;                                                    // ≈ 1566
+  ctx.save(); rr(ctx,px,cy,pw,92,16); ctx.fillStyle="rgba(255,255,255,.06)"; ctx.fill();
   ctx.strokeStyle=hexA(theme.accent,.45); ctx.lineWidth=1.5; ctx.stroke(); ctx.restore();
   pill(ctx, "🤖 AI REPORT", px+40, cy-12, 12, theme);
-  fitText(ctx, rep.comment, x0+300, cy+40, 490, 24, FONT_FUN, "#fff");
-  fitText(ctx, rep.tail,    x0+300, cy+66, 490, 18, FONT_FUN, "rgba(255,255,255,.88)");
-  fitText(ctx, `${rep.stats}  ·  ${rep.date}`, x0+300, cy+88, 490, 13, FONT_UI, hexA(theme.accent,.95), "700");
+  fitText(ctx, rep.comment, cx, cy+37, pw-30, 23, FONT_FUN, "#fff");
+  fitText(ctx, rep.tail,    cx, cy+61, pw-30, 17, FONT_FUN, "rgba(255,255,255,.88)");
+  fitText(ctx, `${rep.stats}  ·  ${rep.date}`, cx, cy+81, pw-30, 13, FONT_UI, hexA(theme.accent,.95), "700");
   // 학교 로고 + 글자
-  drawLogoRow(ctx, x0+300, cy+168, 32, 19, 27, theme);
+  drawLogoRow(ctx, cx, cy+136, 27, 17, 24, theme);
 }
 function drawPiece(ctx, x0, y0, shots, rep, theme){                            // 600 × 900
   drawUnitBg(ctx,x0,y0,600,900,theme,49);
@@ -901,11 +903,19 @@ async function compose(shots, mode, rep, theme, qrText){
   const ctx=c.getContext("2d");
   const classic = S.style==="classic";
   const strip = classic ? drawClassicStrip : drawStrip, piece = classic ? drawClassicPiece : drawPiece;
-  if(mode===2){ strip(ctx,0,shots,rep,theme); strip(ctx,600,shots,rep,theme); }
+  // 바깥 여백 40 · 가운데(두 장이 맞닿는 곳)는 20+20 → 용지 전체에서 여백이 모두 40으로 같음
+  if(mode===2){ strip(ctx,0,shots,rep,theme,{padL:40}); strip(ctx,600,shots,rep,theme,{padL:20}); }
   else {
     // 4장 모드: 왼쪽 = 미니 네컷 4개(원본의 절반 크기, 2×2) · 오른쪽 = 원본 네컷 1개
-    for(let r=0;r<2;r++) for(let k=0;k<2;k++){ ctx.save(); ctx.translate(k*300, r*SHEET_H/2); ctx.scale(.5,.5); strip(ctx,0,shots,rep,theme); ctx.restore(); }
-    strip(ctx,600,shots,rep,theme);
+    // 미니 칸(300 × 888)마다 배경을 먼저 깔고, 네컷을 MINI 배율로 줄여 가운데에 놓음 → 칸 가장자리에 안전 여백
+    const cellH = SHEET_H/2, MINI = 0.45;
+    for(let r=0;r<2;r++) for(let k=0;k<2;k++){
+      const cx0=k*300, cy0=r*cellH;
+      if(classic) classicBg(ctx,cx0,cy0,300,cellH,theme,22); else drawUnitBg(ctx,cx0,cy0,300,cellH,theme,22);
+      ctx.save(); ctx.translate(cx0+(300-600*MINI)/2, cy0+(cellH-SHEET_H*MINI)/2); ctx.scale(MINI,MINI);
+      strip(ctx,0,shots,rep,theme,{padL:30, bg:false}); ctx.restore();
+    }
+    strip(ctx,600,shots,rep,theme,{padL:20});
   }
   drawCutGuides(ctx, mode, classic && !theme.dark ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.35)");
   return c;
@@ -1309,19 +1319,20 @@ function classicTitle(ctx, t, cx, y, size, maxW){
   if(t.minimal) fitText(ctx, t.title.split("").join(" "), cx, y, maxW, Math.round(size*.72), FONT_UI, t.ink, "800");
   else fitText(ctx, t.titleWrap ? `${t.titleWrap} ${t.title} ${t.titleWrap}` : t.title, cx, y, maxW, size, FONT_SCRIPT, t.ink, "700");
 }
-function drawClassicStrip(ctx, x0, shots, rep, t){                              // 600 × 1776
-  classicBg(ctx,x0,0,600,SHEET_H,t,40);
-  classicTitle(ctx, t, x0+300, t.ears ? 50 : 60, t.ears ? 44 : 50, t.ears ? 300 : 500);
-  const pw=520, ph=Math.round(pw/PHOTO_RATIO), px=x0+40, top=80, gap=12;
-  if(t.ears==="cat") drawEars(ctx, "cat", px, top-5, pw, 34);
+function drawClassicStrip(ctx, x0, shots, rep, t, o={}){                      // 600 × 1776
+  const padL = o.padL ?? 30, pw = 540, px = x0+padL, cx = px+pw/2;
+  const ph = Math.round(pw/PHOTO_RATIO), top = 80, gap = 10;
+  if(o.bg!==false) classicBg(ctx,x0,0,600,SHEET_H,t,30);
+  classicTitle(ctx, t, cx, t.ears ? 54 : 62, t.ears ? 40 : 48, t.ears ? 300 : 500);
+  if(t.ears==="cat") drawEars(ctx, "cat", px, top-5, pw, 30);
   shots.forEach((s,i)=>classicPhoto(ctx, s, px, top+i*(ph+gap), pw, ph, t));
-  if(t.ears==="dog") drawEars(ctx, "dog", px-5, top-5, pw+10, 36);
-  const by = top+4*ph+3*gap;                                                     // ≈ 1504
+  if(t.ears==="dog") drawEars(ctx, "dog", px-5, top-5, pw+10, 34);
+  const by = top+4*ph+3*gap;                                                     // ≈ 1550
   const lines = rep.phrase.split("\n"), two = lines.length>1;
-  fitText(ctx, lines[0], x0+300, by+(two?66:78), 500, 36, FONT_FUN, t.ink);
-  if(two) fitText(ctx, lines[1], x0+300, by+108, 500, 30, FONT_UI, t.ink, "600");
-  fitText(ctx, rep.date, x0+300, by+(two?150:126), 500, 21, FONT_UI, t.sub, "700");
-  fitText(ctx, "#오늘의네컷", x0+300, by+(two?184:162), 500, 16, FONT_UI, hexA(t.sub.length===7?t.sub:"#888888", .85), "600");
+  fitText(ctx, lines[0], cx, by+(two?52:60), 500, 34, FONT_FUN, t.ink);
+  if(two) fitText(ctx, lines[1], cx, by+90, 500, 28, FONT_UI, t.ink, "600");
+  fitText(ctx, rep.date, cx, by+(two?126:100), 500, 20, FONT_UI, t.sub, "700");
+  fitText(ctx, "#오늘의네컷", cx, by+(two?156:132), 500, 15, FONT_UI, hexA(t.sub.length===7?t.sub:"#888888", .85), "600");
 }
 function drawClassicPiece(ctx, x0, y0, shots, rep, t){                          // 600 × 900
   classicBg(ctx,x0,y0,600,900,t,49);
