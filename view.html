@@ -76,8 +76,8 @@
     const img = document.getElementById("photo");
     img.src = `https://lh3.googleusercontent.com/d/${p}=w1600`;
     img.onerror = () => { if (!img.dataset.retry) { img.dataset.retry = 1; img.src = `https://drive.google.com/thumbnail?id=${p}&sz=w1600`; } };
-    // 4장 모드(세로 영상)는 사진 비율이 약 2:3, 2장 모드(가로 영상)는 1:3
-    img.onload = () => { const vb = document.getElementById("vbox"); if (vb && img.naturalHeight / img.naturalWidth < 2) vb.classList.add("portrait"); };
+    // 사진 비율로 영상 칸 모양 결정 (세로 네컷 1:3·가로 한 장 3:2 → 가로 영상)
+    img.onload = () => { const vb = document.getElementById("vbox"); const r = img.naturalHeight / img.naturalWidth; if (vb && r > 1 && r < 2) vb.classList.add("portrait"); };
 
     if (ok(v)) {
       box.insertAdjacentHTML("beforeend", `
